@@ -1,0 +1,167 @@
+# ========================================
+# ExactoBar .gitignore
+# Rust workspace for macOS GPUI application
+# ========================================
+
+# ----------------------------------------
+# Rust Build Artifacts
+# ----------------------------------------
+/target/
+**/target/
+debug/
+release/
+*.rs.bk
+*.rlib
+*.rmeta
+*.d
+
+# Note: Cargo.lock is COMMITTED for this application workspace
+# (Only ignore for pure library crates)
+
+# ----------------------------------------
+# IDE & Editor Files
+# ----------------------------------------
+# JetBrains (RustRover, CLion, IntelliJ)
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Vim/Neovim
+*.swp
+*.swo
+*.swn
+*~
+.*.sw?
+Session.vim
+.netrwhist
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# Sublime Text
+*.sublime-workspace
+*.sublime-project
+
+# ----------------------------------------
+# macOS System Files
+# ----------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.AppleDouble
+.LSOverride
+Icon?
+.DocumentRevisions-V100
+.fseventsd
+.TemporaryItems
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# macOS App bundle artifacts (if building outside target/)
+*.app/
+*.dSYM/
+
+# ----------------------------------------
+# Debug & Profiling
+# ----------------------------------------
+*.pdb
+*.dSYM
+perf.data
+perf.data.old
+flamegraph.svg
+callgrind.out.*
+massif.out.*
+*.prof
+*.profraw
+*.profdata
+
+# ----------------------------------------
+# Coverage Reports
+# ----------------------------------------
+/coverage/
+*.gcno
+*.gcda
+*.gcov
+lcov.info
+tarpaulin-report.html
+tarpaulin-report.json
+cobertura.xml
+
+# LLVM coverage
+*.profraw
+default_*.profraw
+
+# ----------------------------------------
+# Testing & Temporary Files
+# ----------------------------------------
+*.tmp
+*.temp
+*.log
+*.bak
+*.orig
+
+# SQLite test databases
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+test*.db
+
+# Exclude actual app database location if needed
+# !exactobar-store/data/
+
+# ----------------------------------------
+# Rust Tooling
+# ----------------------------------------
+# rust-analyzer
+rust-project.json
+
+# Cargo
+.cargo/config.toml.local
+.cargo/credentials.toml
+
+# rustfmt backup
+*.rs.rustfmt
+
+# ----------------------------------------
+# Documentation Build
+# ----------------------------------------
+/doc/
+**/doc/
+
+# ----------------------------------------
+# Environment & Secrets
+# ----------------------------------------
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+secrets.toml
+
+# ----------------------------------------
+# Misc
+# ----------------------------------------
+*.patch
+*.diff
+TODO.md
+SCRATCH*
+scratch*
+notes.txt

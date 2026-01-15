@@ -1,0 +1,32 @@
+[package]
+name = "exactobar-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Command-line interface for ExactoBar"
+
+[[bin]]
+name = "exactobar"
+path = "src/main.rs"
+
+[[bin]]
+name = "test_fetch"
+path = "src/bin/test_fetch.rs"
+
+[dependencies]
+exactobar-core = { workspace = true }
+exactobar-fetch = { workspace = true }
+exactobar-providers = { workspace = true }
+exactobar-store = { workspace = true }
+clap = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+chrono = { workspace = true }
+futures = { workspace = true }
+which = { workspace = true }

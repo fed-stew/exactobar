@@ -1,0 +1,12 @@
+# ExactoBar Clippy configuration
+# Cognitive complexity threshold (default is 25)
+cognitive-complexity-threshold = 30
+
+# Too many arguments threshold (default is 7)
+too-many-arguments-threshold = 8
+
+# Type complexity threshold (default is 250)
+type-complexity-threshold = 300
+
+# Allow certain patterns in this codebase
+allow-unwrap-in-tests = true

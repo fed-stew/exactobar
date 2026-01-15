@@ -1,0 +1,27 @@
+[package]
+name = "exactobar-providers"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Provider implementations for ExactoBar"
+
+[dependencies]
+exactobar-core = { workspace = true }
+exactobar-fetch = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+dirs = { workspace = true }
+async-trait = { workspace = true }
+reqwest = { workspace = true }
+base64 = { workspace = true }
+regex = { workspace = true }
+which = { workspace = true }
+rusqlite = { workspace = true }
+keyring = { workspace = true }

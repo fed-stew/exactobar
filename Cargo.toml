@@ -1,0 +1,84 @@
+[workspace]
+resolver = "2"
+members = [
+    "exactobar-core",
+    "exactobar-fetch",
+    "exactobar-providers",
+    "exactobar-store",
+    "exactobar-cli",
+    "exactobar-app"
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85.0"
+license = "MIT"
+authors = ["Jan Feddersen"]
+repository = "https://github.com/janfeddersen/exactobar"
+description = "A macOS menu bar app for LLM provider usage monitoring"
+
+[workspace.dependencies]
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+
+# Async runtime
+tokio = { version = "1.0", features = ["full"] }
+
+# Error handling
+thiserror = "2.0"
+anyhow = "1.0"
+
+# Date/time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# HTTP client
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+# CLI
+clap = { version = "4.5", features = ["derive"] }
+
+# Utilities
+futures = "0.3"
+dirs = "5.0"
+which = "7"
+async-trait = "0.1"
+
+# Keychain
+keyring = { version = "3", features = ["apple-native", "sync-secret-service"] }
+
+# URL parsing
+url = "2.5"
+
+# PTY support
+portable-pty = "0.8"
+strip-ansi-escapes = "0.2"
+
+# Encoding
+base64 = "0.22"
+regex = "1.10"
+
+# SQLite
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+# Crypto
+ring = "0.17"
+
+# GUI
+# TODO: Pin GPUI to a specific commit SHA for reproducible builds.
+# Tracking `branch = "main"` is unstable - upstream changes can break builds at any time.
+# To pin: replace `branch = "main"` with `rev = "<commit-sha>"` after testing compatibility.
+# Example: gpui = { git = "...", rev = "abc123def456", package = "gpui" }
+gpui = { git = "https://github.com/zed-industries/zed", branch = "main", package = "gpui" }
+
+# Internal crates
+exactobar-core = { path = "exactobar-core" }
+exactobar-fetch = { path = "exactobar-fetch" }
+exactobar-providers = { path = "exactobar-providers" }
+exactobar-store = { path = "exactobar-store" }
