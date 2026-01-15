@@ -51,6 +51,7 @@ impl Probe {
         match client.get(&self.url).await {
             Ok(response) => {
                 let elapsed = start.elapsed();
+                #[allow(clippy::cast_possible_truncation)]
                 ProbeResult {
                     success: response.status().is_success(),
                     response_time_ms: elapsed.as_millis() as u64,
@@ -60,6 +61,7 @@ impl Probe {
             }
             Err(e) => {
                 let elapsed = start.elapsed();
+                #[allow(clippy::cast_possible_truncation)]
                 ProbeResult {
                     success: false,
                     response_time_ms: elapsed.as_millis() as u64,

@@ -5,12 +5,12 @@
 #![allow(clippy::module_name_repetitions)]
 #![allow(clippy::must_use_candidate)]
 
-//! # ExactoBar Core
+//! # `ExactoBar` Core
 //!
-//! Core types, models, and traits for the ExactoBar application.
+//! Core types, models, and traits for the `ExactoBar` application.
 //!
 //! This crate provides the foundational abstractions used across all other
-//! ExactoBar crates, including:
+//! `ExactoBar` crates, including:
 //!
 //! - Domain models (providers, usage data, quotas)
 //! - Error types

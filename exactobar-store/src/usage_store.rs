@@ -32,8 +32,11 @@ pub struct CostUsageSnapshot {
 /// Daily cost breakdown.
 #[derive(Debug, Clone)]
 pub struct DailyCost {
+    /// Date of the cost entry.
     pub date: DateTime<Utc>,
+    /// Token count for this day.
     pub tokens: u64,
+    /// Cost in USD.
     pub cost_usd: f64,
 }
 
@@ -203,7 +206,7 @@ impl UsageStore {
     pub async fn start_refresh(&self, provider: ProviderKind) -> Result<(), StoreError> {
         let mut inner = self.inner.write().await;
         if inner.refresh_in_progress.contains(&provider) {
-            return Err(StoreError::RefreshInProgress(format!("{:?}", provider)));
+            return Err(StoreError::RefreshInProgress(format!("{provider:?}")));
         }
         inner.refresh_in_progress.insert(provider);
         Ok(())

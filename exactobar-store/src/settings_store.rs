@@ -21,6 +21,7 @@ use crate::persistence::{default_settings_path, load_json, save_json};
 /// User preferences.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct Settings {
     // ========================================================================
     // Core Settings (existing)
@@ -91,7 +92,7 @@ pub struct Settings {
     /// Show optional credits and extra usage sections in menu.
     pub show_optional_credits_and_extra_usage: bool,
 
-    /// Enable OpenAI web dashboard access for Codex.
+    /// Enable `OpenAI` web dashboard access for Codex.
     pub openai_web_access_enabled: bool,
 
     // ========================================================================
@@ -220,11 +221,16 @@ impl std::fmt::Display for RefreshCadence {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum LogLevel {
+    /// Error level logging.
     Error,
+    /// Warning level logging.
     Warn,
+    /// Info level logging.
     #[default]
     Info,
+    /// Debug level logging.
     Debug,
+    /// Trace level logging.
     Trace,
 }
 
@@ -338,7 +344,7 @@ pub struct ProviderSettings {
     /// Cookie source for web-based fetching.
     pub cookie_source: Option<CookieSource>,
 
-    /// Preferred browser for cookies (legacy, use cookie_source instead).
+    /// Preferred browser for cookies (legacy, use `cookie_source` instead).
     pub browser_preference: Option<String>,
 
     /// Environment variable for API key.
@@ -373,11 +379,19 @@ impl SettingsStore {
     }
 
     /// Loads settings from the default path.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if settings cannot be loaded from disk.
     pub async fn load_default() -> Result<Self, StoreError> {
         Self::load(default_settings_path()).await
     }
 
     /// Loads settings from a path.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if settings cannot be loaded from disk.
     pub async fn load(path: PathBuf) -> Result<Self, StoreError> {
         let settings = if path.exists() {
             info!(path = %path.display(), "Loading settings");
@@ -417,6 +431,10 @@ impl SettingsStore {
     }
 
     /// Saves settings to disk.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if settings cannot be written to disk.
     pub async fn save(&self) -> Result<(), StoreError> {
         let settings = self.settings.read().await;
         save_json(&self.path, &*settings).await?;
@@ -584,12 +602,12 @@ impl SettingsStore {
         self.update(|s| s.show_optional_credits_and_extra_usage = value).await;
     }
 
-    /// Gets whether OpenAI web access is enabled.
+    /// Gets whether `OpenAI` web access is enabled.
     pub async fn openai_web_access_enabled(&self) -> bool {
         self.settings.read().await.openai_web_access_enabled
     }
 
-    /// Sets whether OpenAI web access is enabled.
+    /// Sets whether `OpenAI` web access is enabled.
     pub async fn set_openai_web_access_enabled(&self, value: bool) {
         self.update(|s| s.openai_web_access_enabled = value).await;
     }

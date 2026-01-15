@@ -47,15 +47,14 @@ impl FetchKind {
         }
     }
 
-    /// Convert to FetchSource for recording in snapshots.
+    /// Convert to `FetchSource` for recording in snapshots.
     pub fn to_fetch_source(&self) -> FetchSource {
         match self {
             Self::CLI => FetchSource::CLI,
             Self::OAuth => FetchSource::OAuth,
-            Self::WebCookies => FetchSource::Web,
+            Self::WebCookies | Self::WebDashboard => FetchSource::Web,
             Self::ApiKey => FetchSource::Api,
             Self::LocalProbe => FetchSource::LocalProbe,
-            Self::WebDashboard => FetchSource::Web,
         }
     }
 }
@@ -160,9 +159,8 @@ pub trait FetchStrategy: Send + Sync {
     fn should_fallback(&self, error: &FetchError) -> bool {
         match error {
             // Don't fallback on rate limiting - wait and retry same strategy
-            FetchError::RateLimited { .. } => false,
-            // Don't fallback on auth errors - likely config issue
-            FetchError::AuthenticationFailed(_) => false,
+            // Don't fallback on rate limit or auth errors - likely config issue
+            FetchError::RateLimited { .. } | FetchError::AuthenticationFailed(_) => false,
             // Fallback on most other errors
             _ => true,
         }

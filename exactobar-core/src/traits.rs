@@ -1,4 +1,4 @@
-//! Trait definitions for ExactoBar.
+//! Trait definitions for `ExactoBar`.
 //!
 //! This module defines the core traits that provider implementations must satisfy.
 

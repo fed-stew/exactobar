@@ -137,7 +137,7 @@ impl PtyOptions {
     /// Add multiple stop patterns.
     pub fn stop_on_any(mut self, patterns: impl IntoIterator<Item = impl Into<String>>) -> Self {
         self.stop_on_substrings
-            .extend(patterns.into_iter().map(|s| s.into()));
+            .extend(patterns.into_iter().map(Into::into));
         self
     }
 
@@ -244,6 +244,10 @@ impl PtyRunner {
     /// # Returns
     ///
     /// A `PtyResult` containing the output and execution metadata.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if the binary is not found, PTY creation fails, or execution errors occur.
     #[instrument(skip(self, input), fields(binary = %binary))]
     pub async fn run(
         &self,
@@ -275,7 +279,7 @@ impl PtyRunner {
             run_pty_blocking(binary_path, input, cols, rows, options_clone)
         })
         .await
-        .map_err(|e| PtyError::SpawnFailed(format!("Task join error: {}", e)))??;
+        .map_err(|e| PtyError::SpawnFailed(format!("Task join error: {e}")))??;
 
         debug!(
             duration = ?result.duration,
@@ -318,6 +322,11 @@ enum PtyMessage {
 ///
 /// This function creates a PTY, spawns the command, handles I/O,
 /// and manages timeouts and pattern matching.
+///
+/// # Errors
+///
+/// Returns error if PTY creation, command spawn, or I/O fails.
+#[allow(clippy::needless_pass_by_value, clippy::too_many_lines)] // Owned values needed for thread spawn
 fn run_pty_blocking(
     binary_path: PathBuf,
     input: String,
@@ -367,13 +376,13 @@ fn run_pty_blocking(
     let mut master = pair
         .master
         .take_writer()
-        .map_err(|e| PtyError::CreateFailed(format!("Failed to get PTY writer: {}", e)))?;
+        .map_err(|e| PtyError::CreateFailed(format!("Failed to get PTY writer: {e}")))?;
 
     // Create a reader in a separate thread
     let reader = pair
         .master
         .try_clone_reader()
-        .map_err(|e| PtyError::CreateFailed(format!("Failed to get PTY reader: {}", e)))?;
+        .map_err(|e| PtyError::CreateFailed(format!("Failed to get PTY reader: {e}")))?;
 
     let (tx, rx) = mpsc::channel::<PtyMessage>();
 
@@ -387,8 +396,8 @@ fn run_pty_blocking(
         trace!(input_len = input.len(), "Sending input to PTY");
         master
             .write_all(input.as_bytes())
-            .map_err(|e| PtyError::Io(e))?;
-        master.flush().map_err(|e| PtyError::Io(e))?;
+            .map_err(PtyError::Io)?;
+        master.flush().map_err(PtyError::Io)?;
     }
 
     // Collect output
@@ -503,7 +512,7 @@ fn run_pty_blocking(
                     }
                     break;
                 }
-                continue;
+                // Continue polling
             }
             Err(mpsc::RecvTimeoutError::Disconnected) => {
                 debug!("Reader thread disconnected");
@@ -514,6 +523,7 @@ fn run_pty_blocking(
 
     // Wait for the child to exit and get status
     let exit_code = match child.wait() {
+        #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
         Ok(status) => Some(status.exit_code() as i32),
         Err(e) => {
             warn!(error = %e, "Failed to wait for child");
@@ -534,6 +544,7 @@ fn run_pty_blocking(
 }
 
 /// Read output from PTY in a separate thread.
+#[allow(clippy::needless_pass_by_value)] // Sender needs to be moved into thread
 fn read_pty_output(mut reader: Box<dyn Read + Send>, tx: mpsc::Sender<PtyMessage>) {
     let mut buffer = [0u8; READ_BUFFER_SIZE];
 

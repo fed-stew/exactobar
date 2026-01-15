@@ -133,7 +133,7 @@ impl FetchPipeline {
 
     /// Sorts strategies by priority (highest first).
     fn sort_by_priority(&mut self) {
-        self.strategies.sort_by(|a, b| b.priority().cmp(&a.priority()));
+        self.strategies.sort_by_key(|b| std::cmp::Reverse(b.priority()));
     }
 
     /// Returns the number of strategies in the pipeline.

@@ -5,8 +5,8 @@
 //!
 //! ## Supported Browsers
 //!
-//! - **Firefox**: Full support (SQLite, no encryption)
-//! - **Safari**: Full support on macOS (SQLite)
+//! - **Firefox**: Full support (`SQLite`, no encryption)
+//! - **Safari**: Full support on macOS (`SQLite`)
 //! - **Chrome/Chromium**: Partial support (encrypted cookies require keychain access)
 //! - **Arc**: Same as Chrome (Chromium-based)
 //! - **Brave**: Same as Chrome (Chromium-based)
@@ -34,11 +34,17 @@ use crate::error::BrowserError;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Browser {
+    /// Apple Safari browser.
     Safari,
+    /// Google Chrome browser.
     Chrome,
+    /// Mozilla Firefox browser.
     Firefox,
+    /// Microsoft Edge browser.
     Edge,
+    /// Arc browser (Chromium-based).
     Arc,
+    /// Brave browser (Chromium-based).
     Brave,
 }
 
@@ -213,8 +219,8 @@ impl Cookie {
     pub fn matches_domain(&self, domain: &str) -> bool {
         let cookie_domain = self.domain.trim_start_matches('.');
         domain == cookie_domain
-            || domain.ends_with(&format!(".{}", cookie_domain))
-            || cookie_domain.ends_with(&format!(".{}", domain))
+            || domain.ends_with(&format!(".{cookie_domain}"))
+            || cookie_domain.ends_with(&format!(".{domain}"))
     }
 }
 
@@ -233,6 +239,10 @@ impl BrowserCookieImporter {
     }
 
     /// Import cookies for a specific domain from a browser.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if browser is not found, database is missing, or cookies cannot be read.
     #[instrument(skip(self), fields(browser = %browser.display_name(), domain = %domain))]
     pub async fn import_cookies(
         &self,
@@ -254,10 +264,10 @@ impl BrowserCookieImporter {
 
         // Different browsers use different formats
         let cookies = match browser {
-            Browser::Safari => self.read_safari_cookies(&db_path, domain)?,
-            Browser::Firefox => self.read_firefox_cookies(&db_path, domain)?,
+            Browser::Safari => Self::read_safari_cookies(&db_path, domain)?,
+            Browser::Firefox => Self::read_firefox_cookies(&db_path, domain)?,
             Browser::Chrome | Browser::Edge | Browser::Arc | Browser::Brave => {
-                self.read_chromium_cookies(&db_path, domain, browser)?
+                Self::read_chromium_cookies(&db_path, domain, browser)?
             }
         };
 
@@ -273,6 +283,10 @@ impl BrowserCookieImporter {
     }
 
     /// Import cookies from the first available browser (in priority order).
+    ///
+    /// # Errors
+    ///
+    /// Returns error if no browsers are available or all browsers fail to provide cookies.
     #[instrument(skip(self, priority), fields(domain = %domain))]
     pub async fn import_cookies_auto(
         &self,
@@ -292,7 +306,6 @@ impl BrowserCookieImporter {
                 Err(e) => {
                     trace!(browser = %browser.display_name(), error = %e, "Browser skipped");
                     last_error = Some(e);
-                    continue;
                 }
             }
         }
@@ -313,7 +326,7 @@ impl BrowserCookieImporter {
     pub fn cookies_to_header(cookies: &[Cookie]) -> String {
         cookies
             .iter()
-            .map(|c| format!("{}={}", c.name, c.value))
+            .map(|c| format!("{}={}", c.name, c.value))  // Can't inline - c.name/c.value
             .collect::<Vec<_>>()
             .join("; ")
     }
@@ -322,9 +335,8 @@ impl BrowserCookieImporter {
     // Safari Cookies
     // ========================================================================
 
-    /// Read Safari cookies from SQLite database.
+    /// Read Safari cookies from `SQLite` database.
     fn read_safari_cookies(
-        &self,
         db_path: &PathBuf,
         domain: &str,
     ) -> Result<Vec<Cookie>, BrowserError> {
@@ -332,14 +344,14 @@ impl BrowserCookieImporter {
 
         // Safari uses binarycookies format on older systems, SQLite on newer
         if db_path.extension().and_then(|e| e.to_str()) == Some("binarycookies") {
-            return self.read_safari_binary_cookies(db_path, domain);
+            return Self::read_safari_binary_cookies(db_path, domain);
         }
 
         // SQLite format - need to copy to temp because Safari locks the file
         let temp_path = copy_to_temp(db_path)?;
 
         let conn = Connection::open_with_flags(&temp_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
-            .map_err(|e| BrowserError::ReadFailed(format!("SQLite open error: {}", e)))?;
+            .map_err(|e| BrowserError::ReadFailed(format!("SQLite open error: {e}")))?;
 
         // Safari SQLite schema:
         // CREATE TABLE cookies (id INTEGER PRIMARY KEY, name TEXT, value TEXT,
@@ -350,9 +362,9 @@ impl BrowserCookieImporter {
                  FROM cookies
                  WHERE domain LIKE ?1 OR domain LIKE ?2",
             )
-            .map_err(|e| BrowserError::ReadFailed(format!("Prepare error: {}", e)))?;
+            .map_err(|e| BrowserError::ReadFailed(format!("Prepare error: {e}")))?;
 
-        let domain_pattern = format!("%{}", domain);
+        let domain_pattern = format!("%{domain}");
         let exact_domain = domain.to_string();
 
         let cookies = stmt
@@ -360,7 +372,8 @@ impl BrowserCookieImporter {
                 let expires_raw: Option<f64> = row.get(4).ok();
                 let expires = expires_raw.and_then(|ts| {
                     // Safari uses Mac absolute time (seconds since 2001-01-01)
-                    let unix_ts = ts + 978307200.0; // Convert to Unix timestamp
+                    let unix_ts = ts + 978_307_200.0; // Convert to Unix timestamp
+                    #[allow(clippy::cast_possible_truncation)]
                     Utc.timestamp_opt(unix_ts as i64, 0).single()
                 });
 
@@ -374,8 +387,8 @@ impl BrowserCookieImporter {
                     http_only: row.get::<_, i32>(6).unwrap_or(0) != 0,
                 })
             })
-            .map_err(|e| BrowserError::ReadFailed(format!("Query error: {}", e)))?
-            .filter_map(|r| r.ok())
+            .map_err(|e| BrowserError::ReadFailed(format!("Query error: {e}")))?
+            .filter_map(Result::ok)
             .collect();
 
         // Clean up temp file
@@ -386,7 +399,6 @@ impl BrowserCookieImporter {
 
     /// Read Safari binary cookies format.
     fn read_safari_binary_cookies(
-        &self,
         _db_path: &PathBuf,
         _domain: &str,
     ) -> Result<Vec<Cookie>, BrowserError> {
@@ -402,9 +414,8 @@ impl BrowserCookieImporter {
     // Firefox Cookies
     // ========================================================================
 
-    /// Read Firefox cookies from SQLite database.
+    /// Read Firefox cookies from `SQLite` database.
     fn read_firefox_cookies(
-        &self,
         db_path: &PathBuf,
         domain: &str,
     ) -> Result<Vec<Cookie>, BrowserError> {
@@ -414,7 +425,7 @@ impl BrowserCookieImporter {
         let temp_path = copy_to_temp(db_path)?;
 
         let conn = Connection::open_with_flags(&temp_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
-            .map_err(|e| BrowserError::ReadFailed(format!("SQLite open error: {}", e)))?;
+            .map_err(|e| BrowserError::ReadFailed(format!("SQLite open error: {e}")))?;
 
         // Firefox schema:
         // CREATE TABLE moz_cookies (id INTEGER PRIMARY KEY, baseDomain TEXT,
@@ -426,9 +437,9 @@ impl BrowserCookieImporter {
                  FROM moz_cookies
                  WHERE host LIKE ?1 OR baseDomain LIKE ?2",
             )
-            .map_err(|e| BrowserError::ReadFailed(format!("Prepare error: {}", e)))?;
+            .map_err(|e| BrowserError::ReadFailed(format!("Prepare error: {e}")))?;
 
-        let domain_pattern = format!("%{}", domain);
+        let domain_pattern = format!("%{domain}");
 
         let cookies = stmt
             .query_map([&domain_pattern, &domain.to_string()], |row| {
@@ -449,8 +460,8 @@ impl BrowserCookieImporter {
                     http_only: row.get::<_, i32>(6)? != 0,
                 })
             })
-            .map_err(|e| BrowserError::ReadFailed(format!("Query error: {}", e)))?
-            .filter_map(|r| r.ok())
+            .map_err(|e| BrowserError::ReadFailed(format!("Query error: {e}")))?
+            .filter_map(Result::ok)
             .collect();
 
         // Clean up temp file
@@ -465,7 +476,6 @@ impl BrowserCookieImporter {
 
     /// Read Chromium-based browser cookies.
     fn read_chromium_cookies(
-        &self,
         db_path: &PathBuf,
         domain: &str,
         browser: Browser,
@@ -476,7 +486,7 @@ impl BrowserCookieImporter {
         let temp_path = copy_to_temp(db_path)?;
 
         let conn = Connection::open_with_flags(&temp_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
-            .map_err(|e| BrowserError::ReadFailed(format!("SQLite open error: {}", e)))?;
+            .map_err(|e| BrowserError::ReadFailed(format!("SQLite open error: {e}")))?;
 
         // Chromium schema:
         // CREATE TABLE cookies (creation_utc INTEGER, host_key TEXT, top_frame_site_key TEXT,
@@ -488,10 +498,10 @@ impl BrowserCookieImporter {
                  FROM cookies
                  WHERE host_key LIKE ?1 OR host_key = ?2",
             )
-            .map_err(|e| BrowserError::ReadFailed(format!("Prepare error: {}", e)))?;
+            .map_err(|e| BrowserError::ReadFailed(format!("Prepare error: {e}")))?;
 
-        let domain_pattern = format!("%{}", domain);
-        let exact_domain = format!(".{}", domain);
+        let domain_pattern = format!("%{domain}");
+        let exact_domain = format!(".{domain}");
 
         let cookies_result: Vec<_> = stmt
             .query_map([&domain_pattern, &exact_domain], |row| {
@@ -506,8 +516,8 @@ impl BrowserCookieImporter {
 
                 Ok((name, value, encrypted_value, host_key, path, expires_utc, is_secure, is_httponly))
             })
-            .map_err(|e| BrowserError::ReadFailed(format!("Query error: {}", e)))?
-            .filter_map(|r| r.ok())
+            .map_err(|e| BrowserError::ReadFailed(format!("Query error: {e}")))?
+            .filter_map(Result::ok)
             .collect();
 
         // Clean up temp file
@@ -520,8 +530,8 @@ impl BrowserCookieImporter {
             // Chromium stores expires as microseconds since Windows epoch (1601-01-01)
             let expires = if expires_utc > 0 {
                 // Convert from Windows epoch microseconds to Unix timestamp
-                let unix_micros = expires_utc - 11644473600000000; // Difference in microseconds
-                let unix_secs = unix_micros / 1000000;
+                let unix_micros = expires_utc - 11_644_473_600_000_000; // Difference in microseconds
+                let unix_secs = unix_micros / 1_000_000;
                 Utc.timestamp_opt(unix_secs, 0).single()
             } else {
                 None
@@ -573,7 +583,7 @@ fn copy_to_temp(source: &PathBuf) -> Result<PathBuf, BrowserError> {
     let temp_path = temp_dir.join(temp_name);
 
     fs::copy(source, &temp_path).map_err(|e| {
-        BrowserError::ReadFailed(format!("Failed to copy database: {}", e))
+        BrowserError::ReadFailed(format!("Failed to copy database: {e}"))
     })?;
 
     Ok(temp_path)
@@ -582,6 +592,7 @@ fn copy_to_temp(source: &PathBuf) -> Result<PathBuf, BrowserError> {
 /// Decrypt a Chromium encrypted cookie value.
 #[cfg(target_os = "macos")]
 fn decrypt_chromium_cookie(encrypted: &[u8], browser: Browser) -> Result<String, BrowserError> {
+    use std::num::NonZeroU32;
     // Chromium encryption on macOS:
     // - First 3 bytes are "v10" or "v11" version marker
     // - Rest is AES-128-CBC encrypted with key from Keychain
@@ -594,8 +605,7 @@ fn decrypt_chromium_cookie(encrypted: &[u8], browser: Browser) -> Result<String,
     let version = &encrypted[0..3];
     if version != b"v10" && version != b"v11" {
         return Err(BrowserError::DecryptionFailed(format!(
-            "Unknown encryption version: {:?}",
-            version
+            "Unknown encryption version: {version:?}"
         )));
     }
 
@@ -610,17 +620,16 @@ fn decrypt_chromium_cookie(encrypted: &[u8], browser: Browser) -> Result<String,
 
     // Try to get key from keychain using keyring crate
     let entry = keyring::Entry::new(service_name, "")
-        .map_err(|e| BrowserError::DecryptionFailed(format!("Keychain error: {}", e)))?;
+        .map_err(|e| BrowserError::DecryptionFailed(format!("Keychain error: {e}")))?;
 
     let password = entry
         .get_password()
-        .map_err(|e| BrowserError::DecryptionFailed(format!("No keychain entry: {}", e)))?;
+        .map_err(|e| BrowserError::DecryptionFailed(format!("No keychain entry: {e}")))?;
 
     // Derive the actual encryption key using PBKDF2
     // Chrome uses: PBKDF2(password, salt="saltysalt", iterations=1003, dkLen=16)
-    use std::num::NonZeroU32;
     let salt = b"saltysalt";
-    let iterations = NonZeroU32::new(1003).unwrap();
+    let iterations = NonZeroU32::new(1003).expect("non-zero");
     let mut key = [0u8; 16];
 
     ring::pbkdf2::derive(
@@ -637,10 +646,10 @@ fn decrypt_chromium_cookie(encrypted: &[u8], browser: Browser) -> Result<String,
     let ciphertext = &encrypted[3..];
 
     let decrypted = decrypt_aes_cbc(&key, &iv, ciphertext)
-        .map_err(|e| BrowserError::DecryptionFailed(format!("AES error: {}", e)))?;
+        .map_err(|e| BrowserError::DecryptionFailed(format!("AES error: {e}")))?;
 
     String::from_utf8(decrypted)
-        .map_err(|e| BrowserError::DecryptionFailed(format!("UTF-8 error: {}", e)))
+        .map_err(|e| BrowserError::DecryptionFailed(format!("UTF-8 error: {e}")))
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -659,6 +668,7 @@ fn decrypt_chromium_cookie(_encrypted: &[u8], _browser: Browser) -> Result<Strin
 /// variables are process-private and not visible to other users.
 #[cfg(target_os = "macos")]
 fn decrypt_aes_cbc(key: &[u8], iv: &[u8], data: &[u8]) -> Result<Vec<u8>, String> {
+    use std::io::Write;
     use std::process::Command;
 
     // SECURITY FIX: Pass key/IV via environment variables instead of CLI args.
@@ -675,7 +685,6 @@ fn decrypt_aes_cbc(key: &[u8], iv: &[u8], data: &[u8]) -> Result<Vec<u8>, String
         .spawn()
         .map_err(|e| e.to_string())?;
 
-    use std::io::Write;
     if let Some(mut stdin) = child.stdin.take() {
         stdin.write_all(data).map_err(|e| e.to_string())?;
     }
@@ -691,8 +700,14 @@ fn decrypt_aes_cbc(key: &[u8], iv: &[u8], data: &[u8]) -> Result<Vec<u8>, String
 
 // Hex encoding helper for key material (used via environment variables)
 mod hex {
+    use std::fmt::Write;
+
     pub fn encode(data: &[u8]) -> String {
-        data.iter().map(|b| format!("{:02x}", b)).collect()
+        let mut s = String::with_capacity(data.len() * 2);
+        for b in data {
+            let _ = write!(s, "{b:02x}");
+        }
+        s
     }
 }
 

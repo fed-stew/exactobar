@@ -1,15 +1,15 @@
-//! Domain models for ExactoBar.
+//! Domain models for `ExactoBar`.
 //!
 //! This module contains the core data structures representing providers,
 //! usage data, quotas, and related concepts. These types are designed to be
-//! compatible with CodexBar's rich data structures.
+//! compatible with `CodexBar`'s rich data structures.
 //!
 //! ## Submodules
 //!
-//! - [`provider`] - Provider types (ProviderKind, Identity, Metadata, Branding)
-//! - [`usage`] - Usage types (UsageSnapshot, UsageWindow, Credits, Quota)
-//! - [`cost`] - Cost tracking (CostUsageSnapshot, DailyUsageEntry)
-//! - [`status`] - Status and fetch types (ProviderStatus, FetchSource)
+//! - [`provider`] - Provider types (`ProviderKind`, Identity, Metadata, Branding)
+//! - [`usage`] - Usage types (`UsageSnapshot`, `UsageWindow`, Credits, Quota)
+//! - [`cost`] - Cost tracking (`CostUsageSnapshot`, `DailyUsageEntry`)
+//! - [`status`] - Status and fetch types (`ProviderStatus`, `FetchSource`)
 
 mod cost;
 mod provider;

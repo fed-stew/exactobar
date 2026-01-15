@@ -90,7 +90,7 @@ impl StatusPoller {
 
         if !response.status().is_success() {
             let status = response.status();
-            return Err(StatusError::Unavailable(format!("HTTP {}", status)));
+            return Err(StatusError::Unavailable(format!("HTTP {status}")));
         }
 
         let data: StatuspageStatus = response.json().await?;
@@ -101,8 +101,7 @@ impl StatusPoller {
             .updated_at
             .as_ref()
             .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
-            .map(|dt| dt.with_timezone(&Utc))
-            .unwrap_or_else(Utc::now);
+            .map_or_else(Utc::now, |dt| dt.with_timezone(&Utc));
 
         debug!(
             indicator = ?indicator,
@@ -120,7 +119,7 @@ impl StatusPoller {
 
     /// Fetch status for a Google Workspace product.
     ///
-    /// Product IDs can be found at: https://www.google.com/appsstatus/dashboard/
+    /// Product IDs can be found at: <https://www.google.com/appsstatus/dashboard/>
     #[instrument(skip(self), fields(product_id = %product_id))]
     pub async fn fetch_google_workspace_status(
         &self,
@@ -165,7 +164,7 @@ impl StatusPoller {
             match self.fetch_status(url).await {
                 Ok(status) => {
                     if first_url.is_none() {
-                        first_url = status.url.clone();
+                        first_url.clone_from(&status.url);
                     }
                     if status.indicator.severity() > worst_indicator.severity() {
                         worst_indicator = status.indicator;
@@ -217,15 +216,23 @@ fn parse_statuspage_indicator(indicator: &str) -> StatusIndicator {
 /// Known status page URLs for providers.
 pub mod urls {
     // === API Endpoints (statuspage.io format) ===
+    /// `OpenAI` status API endpoint.
     pub const OPENAI: &str = "https://status.openai.com/api/v2/status.json";
+    /// Anthropic status API endpoint.
     pub const ANTHROPIC: &str = "https://status.anthropic.com/api/v2/status.json";
+    /// GitHub status API endpoint.
     pub const GITHUB: &str = "https://www.githubstatus.com/api/v2/status.json";
 
     // === User-facing status pages ===
+    /// `OpenAI` status page URL.
     pub const OPENAI_PAGE: &str = "https://status.openai.com";
+    /// Anthropic status page URL.
     pub const ANTHROPIC_PAGE: &str = "https://status.anthropic.com";
+    /// GitHub status page URL.
     pub const GITHUB_PAGE: &str = "https://www.githubstatus.com";
+    /// Google Cloud status page URL.
     pub const GOOGLE_CLOUD_PAGE: &str = "https://status.cloud.google.com";
+    /// Cursor status page URL.
     pub const CURSOR_PAGE: &str = "https://status.cursor.com";
 
     /// Returns the API URL for a given provider name (lowercase).

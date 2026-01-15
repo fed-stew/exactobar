@@ -203,7 +203,7 @@ impl std::fmt::Debug for FetchContext {
 // Fetch Context Builder
 // ============================================================================
 
-/// Builder for constructing a FetchContext.
+/// Builder for constructing a `FetchContext`.
 pub struct FetchContextBuilder {
     keychain: Option<Arc<dyn KeychainApi>>,
     http: Option<Arc<HttpClient>>,

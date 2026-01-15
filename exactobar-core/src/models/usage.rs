@@ -100,20 +100,25 @@ impl UsageSnapshot {
     /// Ensures all percentage values are within valid ranges [0, 100].
     /// This should be called after parsing API responses to catch
     /// malformed or malicious data.
+    ///
+    /// # Errors
+    ///
+    /// Returns `CoreError::InvalidData` if any usage window contains
+    /// invalid percentage values (negative, > 100, or non-finite).
     pub fn validate(&self) -> Result<(), CoreError> {
         if let Some(ref primary) = self.primary {
             primary.validate().map_err(|e| {
-                CoreError::InvalidData(format!("primary window: {}", e))
+                CoreError::InvalidData(format!("primary window: {e}"))
             })?;
         }
         if let Some(ref secondary) = self.secondary {
             secondary.validate().map_err(|e| {
-                CoreError::InvalidData(format!("secondary window: {}", e))
+                CoreError::InvalidData(format!("secondary window: {e}"))
             })?;
         }
         if let Some(ref tertiary) = self.tertiary {
             tertiary.validate().map_err(|e| {
-                CoreError::InvalidData(format!("tertiary window: {}", e))
+                CoreError::InvalidData(format!("tertiary window: {e}"))
             })?;
         }
         Ok(())
@@ -178,7 +183,7 @@ impl UsageWindow {
 
     /// Returns the window duration as a chrono Duration.
     pub fn window_duration(&self) -> Option<Duration> {
-        self.window_minutes.map(|m| Duration::minutes(m as i64))
+        self.window_minutes.map(|m| Duration::minutes(i64::from(m)))
     }
 
     /// Returns time until reset, if known.
@@ -197,6 +202,11 @@ impl UsageWindow {
     /// Validates the window data.
     ///
     /// Ensures percentage values are within valid ranges [0, 100].
+    ///
+    /// # Errors
+    ///
+    /// Returns `CoreError::InvalidData` if `used_percent` is negative,
+    /// greater than 100, or not a finite number.
     pub fn validate(&self) -> Result<(), CoreError> {
         if self.used_percent < 0.0 || self.used_percent > 100.0 {
             return Err(CoreError::InvalidData(format!(
@@ -329,7 +339,7 @@ impl UsageData {
         self.usage_percentage().is_some_and(|pct| pct >= 100.0)
     }
 
-    /// Converts to a UsageSnapshot.
+    /// Converts to a `UsageSnapshot`.
     pub fn to_snapshot(&self) -> UsageSnapshot {
         let window = self.usage_percentage().map(|pct| UsageWindow {
             used_percent: pct,
@@ -376,7 +386,7 @@ impl Quota {
         }
     }
 
-    /// Converts to a UsageWindow.
+    /// Converts to a `UsageWindow`.
     pub fn to_window(&self) -> UsageWindow {
         UsageWindow {
             used_percent: self.usage_percentage(),

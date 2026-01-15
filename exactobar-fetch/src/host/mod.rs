@@ -1,4 +1,4 @@
-//! Host APIs for ExactoBar fetch strategies.
+//! Host APIs for `ExactoBar` fetch strategies.
 //!
 //! This module provides abstractions for interacting with external systems:
 //!

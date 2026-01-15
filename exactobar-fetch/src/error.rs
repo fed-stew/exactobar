@@ -107,7 +107,12 @@ pub enum HttpError {
 pub enum KeychainError {
     /// Credential not found.
     #[error("Credential not found for {service}/{account}")]
-    NotFound { service: String, account: String },
+    NotFound {
+        /// Service name.
+        service: String,
+        /// Account name.
+        account: String,
+    },
 
     /// Access denied.
     #[error("Access denied to keychain")]
@@ -164,7 +169,12 @@ pub enum ProcessError {
 
     /// Non-zero exit code.
     #[error("Command exited with code {code}: {stderr}")]
-    NonZeroExit { code: i32, stderr: String },
+    NonZeroExit {
+        /// Exit code from the process.
+        code: i32,
+        /// Standard error output.
+        stderr: String,
+    },
 
     /// IO error.
     #[error("IO error: {0}")]
@@ -200,7 +210,12 @@ pub enum PtyError {
 
     /// Non-zero exit code.
     #[error("Command exited with code {code}: {output}")]
-    NonZeroExit { code: i32, output: String },
+    NonZeroExit {
+        /// Exit code from the process.
+        code: i32,
+        /// Command output.
+        output: String,
+    },
 
     /// IO error.
     #[error("IO error: {0}")]
@@ -208,7 +223,12 @@ pub enum PtyError {
 
     /// Stop pattern matched.
     #[error("Stopped on pattern: {pattern}")]
-    StoppedOnPattern { pattern: String, output: String },
+    StoppedOnPattern {
+        /// The pattern that was matched.
+        pattern: String,
+        /// Command output up to the match.
+        output: String,
+    },
 
     /// PTY system unavailable.
     #[error("PTY system unavailable: {0}")]
@@ -232,7 +252,12 @@ pub enum BrowserError {
 
     /// Cookie database not found.
     #[error("Cookie database not found for {browser}: {path}")]
-    DatabaseNotFound { browser: String, path: String },
+    DatabaseNotFound {
+        /// Browser name.
+        browser: String,
+        /// Expected database path.
+        path: String,
+    },
 
     /// Failed to read cookies.
     #[error("Failed to read cookies: {0}")]

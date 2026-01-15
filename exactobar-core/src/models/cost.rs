@@ -66,6 +66,7 @@ impl CostUsageSnapshot {
         if self.daily.is_empty() {
             return None;
         }
+        #[allow(clippy::cast_precision_loss)]
         Some(self.total_daily_cost() / self.daily.len() as f64)
     }
 
@@ -74,6 +75,7 @@ impl CostUsageSnapshot {
         if self.daily.is_empty() {
             return None;
         }
+        #[allow(clippy::cast_precision_loss)]
         Some(self.total_daily_tokens() / self.daily.len() as u64)
     }
 
@@ -149,7 +151,7 @@ impl DailyUsageEntry {
 
     /// Returns the number of unique models used.
     pub fn unique_models_count(&self) -> usize {
-        self.models_used.as_ref().map(|m| m.len()).unwrap_or(0)
+        self.models_used.as_ref().map_or(0, Vec::len)
     }
 
     /// Returns true if this entry has any token data.

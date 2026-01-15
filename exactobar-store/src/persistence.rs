@@ -21,15 +21,13 @@ pub fn default_config_dir() -> PathBuf {
     #[cfg(target_os = "macos")]
     {
         dirs::home_dir()
-            .map(|h| h.join("Library").join("Application Support").join("ExactoBar"))
-            .unwrap_or_else(|| PathBuf::from("."))
+            .map_or_else(|| PathBuf::from("."), |h| h.join("Library").join("Application Support").join("ExactoBar"))
     }
 
     #[cfg(not(target_os = "macos"))]
     {
         dirs::config_dir()
-            .map(|c| c.join("exactobar"))
-            .unwrap_or_else(|| PathBuf::from("."))
+            .map_or_else(|| PathBuf::from("."), |c| c.join("exactobar"))
     }
 }
 
@@ -42,15 +40,13 @@ pub fn default_cache_dir() -> PathBuf {
     #[cfg(target_os = "macos")]
     {
         dirs::home_dir()
-            .map(|h| h.join("Library").join("Caches").join("ExactoBar"))
-            .unwrap_or_else(|| PathBuf::from("."))
+            .map_or_else(|| PathBuf::from("."), |h| h.join("Library").join("Caches").join("ExactoBar"))
     }
 
     #[cfg(not(target_os = "macos"))]
     {
         dirs::cache_dir()
-            .map(|c| c.join("exactobar"))
-            .unwrap_or_else(|| PathBuf::from("."))
+            .map_or_else(|| PathBuf::from("."), |c| c.join("exactobar"))
     }
 }
 

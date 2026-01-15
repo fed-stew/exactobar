@@ -1,8 +1,8 @@
-//! Core error types for ExactoBar.
+//! Core error types for `ExactoBar`.
 
 use thiserror::Error;
 
-/// Core error type for ExactoBar operations.
+/// Core error type for `ExactoBar` operations.
 #[derive(Debug, Error)]
 pub enum CoreError {
     /// Provider not found or not configured.

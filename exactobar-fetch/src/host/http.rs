@@ -16,7 +16,7 @@ use crate::error::HttpError;
 /// Default request timeout.
 const DEFAULT_TIMEOUT_SECS: u64 = 30;
 
-/// User agent string for ExactoBar.
+/// User agent string for `ExactoBar`.
 const USER_AGENT: &str = concat!("ExactoBar/", env!("CARGO_PKG_VERSION"));
 
 // ============================================================================
@@ -51,9 +51,8 @@ impl HttpClient {
             .build()
             .unwrap_or_else(|e| {
                 panic!(
-                    "Failed to create HTTP client: {}. \
-                    This usually indicates a broken TLS/SSL configuration.",
-                    e
+                    "Failed to create HTTP client: {e}. \
+                    This usually indicates a broken TLS/SSL configuration."
                 )
             });
 
@@ -86,7 +85,7 @@ impl HttpClient {
 
         // Check if host matches any allowed domain
         let allowed = allowed.iter().any(|domain| {
-            host == domain || host.ends_with(&format!(".{}", domain))
+            host == domain || host.ends_with(&format!(".{domain}"))
         });
 
         if allowed {

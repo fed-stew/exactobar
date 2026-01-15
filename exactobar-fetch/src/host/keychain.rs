@@ -11,7 +11,7 @@ use tracing::{debug, warn};
 
 use crate::error::KeychainError;
 
-/// Service name prefix for ExactoBar credentials.
+/// Service name prefix for `ExactoBar` credentials.
 const SERVICE_PREFIX: &str = "exactobar";
 
 // ============================================================================
@@ -28,7 +28,7 @@ pub trait KeychainApi: Send + Sync {
     ///
     /// # Arguments
     /// * `service` - Service identifier (e.g., "claude", "openai")
-    /// * `account` - Account identifier (e.g., "api_key", "oauth_token")
+    /// * `account` - Account identifier (e.g., `api_key`, `oauth_token`)
     ///
     /// # Returns
     /// * `Ok(Some(secret))` - Credential found
@@ -78,7 +78,7 @@ impl SystemKeychain {
 
     /// Builds the full service name with prefix.
     fn full_service(service: &str) -> String {
-        format!("{}:{}", SERVICE_PREFIX, service)
+        format!("{SERVICE_PREFIX}:{service}")
     }
 
     /// Creates a keyring entry.
@@ -153,26 +153,43 @@ impl KeychainApi for SystemKeychain {
 
 /// Common service names for providers.
 pub mod services {
+    /// Anthropic Claude service.
     pub const CLAUDE: &str = "claude";
+    /// `OpenAI` service.
     pub const OPENAI: &str = "openai";
+    /// Cursor IDE service.
     pub const CURSOR: &str = "cursor";
+    /// Google Gemini service.
     pub const GEMINI: &str = "gemini";
+    /// GitHub Copilot service.
     pub const COPILOT: &str = "copilot";
+    /// GitHub service.
     pub const GITHUB: &str = "github";
+    /// Google Vertex AI service.
     pub const VERTEXAI: &str = "vertexai";
+    /// Factory AI service.
     pub const FACTORY: &str = "factory";
+    /// z.ai service.
     pub const ZAI: &str = "zai";
+    /// Augment Code service.
     pub const AUGMENT: &str = "augment";
+    /// Kiro AI service.
     pub const KIRO: &str = "kiro";
+    /// `MiniMax` service.
     pub const MINIMAX: &str = "minimax";
+    /// Antigravity AI service.
     pub const ANTIGRAVITY: &str = "antigravity";
 }
 
 /// Common account names for credentials.
 pub mod accounts {
+    /// API key credential.
     pub const API_KEY: &str = "api_key";
+    /// OAuth access token.
     pub const OAUTH_TOKEN: &str = "oauth_token";
+    /// OAuth refresh token.
     pub const REFRESH_TOKEN: &str = "refresh_token";
+    /// Session key credential.
     pub const SESSION_KEY: &str = "session_key";
 }
 

@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ProviderKind {
-    /// OpenAI Codex
+    /// `OpenAI` Codex
     Codex,
     /// Anthropic Claude
     Claude,
@@ -39,7 +39,7 @@ pub enum ProviderKind {
     Kiro,
     /// Antigravity AI
     Antigravity,
-    /// MiniMax
+    /// `MiniMax`
     MiniMax,
 }
 
@@ -131,7 +131,7 @@ pub struct Provider {
     pub display_name: Option<String>,
     /// Environment variable name for the API key.
     pub api_key_env: Option<String>,
-    /// Direct API key (not recommended, prefer api_key_env).
+    /// Direct API key (not recommended, prefer `api_key_env`).
     #[serde(skip_serializing)]
     pub api_key: Option<String>,
 }
@@ -191,7 +191,7 @@ impl ProviderIdentity {
     /// Returns a display string for this identity.
     pub fn display_string(&self) -> String {
         match (&self.account_email, &self.account_organization) {
-            (Some(email), Some(org)) => format!("{} ({})", email, org),
+            (Some(email), Some(org)) => format!("{email} ({org})"),
             (Some(email), None) => email.clone(),
             (None, Some(org)) => org.clone(),
             (None, None) => self.provider_id.display_name().to_string(),
@@ -225,6 +225,7 @@ pub enum LoginMethod {
 /// This is static configuration that describes what a provider supports
 /// and how it should be displayed in the UI.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct ProviderMetadata {
     /// The provider this metadata describes.
     pub id: ProviderKind,
@@ -275,7 +276,7 @@ impl ProviderMetadata {
             supports_opus: false,
             supports_credits: false,
             credits_hint: String::new(),
-            toggle_title: format!("Show {} usage", name),
+            toggle_title: format!("Show {name} usage"),
             cli_name: kind.cli_name().to_string(),
             default_enabled: true,
             is_primary_provider: false,
@@ -349,6 +350,7 @@ impl ProviderColor {
     }
 
     /// Converts to 8-bit RGB tuple.
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     pub fn to_rgb8(&self) -> (u8, u8, u8) {
         (
             (self.red * 255.0) as u8,
@@ -360,7 +362,7 @@ impl ProviderColor {
     /// Converts to hex string (e.g., "#FF6600").
     pub fn to_hex(&self) -> String {
         let (r, g, b) = self.to_rgb8();
-        format!("#{:02X}{:02X}{:02X}", r, g, b)
+        format!("#{r:02X}{g:02X}{b:02X}")
     }
 }
 
@@ -374,18 +376,30 @@ impl Default for ProviderColor {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum IconStyle {
+    /// `OpenAI` Codex icon.
     #[default]
     Codex,
+    /// Anthropic Claude icon.
     Claude,
+    /// Cursor IDE icon.
     Cursor,
+    /// Google Gemini icon.
     Gemini,
+    /// GitHub Copilot icon.
     Copilot,
+    /// Factory AI icon.
     Factory,
+    /// Google Cloud Vertex AI icon.
     VertexAI,
+    /// z.ai icon.
     Zai,
+    /// Augment Code icon.
     Augment,
+    /// Kiro AI icon.
     Kiro,
+    /// Antigravity AI icon.
     Antigravity,
+    /// `MiniMax` icon.
     MiniMax,
     /// Combined/aggregate view icon.
     Combined,

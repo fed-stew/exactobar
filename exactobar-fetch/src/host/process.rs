@@ -138,12 +138,11 @@ impl ProcessRunner {
 
         // Spawn and wait with optional timeout
         let output = if let Some(timeout) = timeout {
-            match tokio::time::timeout(timeout, command.output()).await {
-                Ok(result) => result?,
-                Err(_) => {
-                    warn!(cmd = %cmd, timeout = ?timeout, "Command timed out");
-                    return Err(ProcessError::Timeout(timeout));
-                }
+            if let Ok(result) = tokio::time::timeout(timeout, command.output()).await {
+                result?
+            } else {
+                warn!(cmd = %cmd, timeout = ?timeout, "Command timed out");
+                return Err(ProcessError::Timeout(timeout));
             }
         } else {
             command.output().await?
@@ -183,7 +182,7 @@ impl ProcessRunner {
     /// Find all instances of a command on PATH.
     pub fn which_all(&self, cmd: &str) -> Vec<PathBuf> {
         which::which_all(cmd)
-            .map(|iter| iter.collect())
+            .map(Iterator::collect)
             .unwrap_or_default()
     }
 }
@@ -194,9 +193,13 @@ impl ProcessRunner {
 
 /// Common CLI tool names.
 pub mod commands {
+    /// Anthropic Claude CLI tool.
     pub const CLAUDE: &str = "claude";
+    /// GitHub CLI tool.
     pub const GH: &str = "gh";
+    /// Google Cloud CLI tool.
     pub const GCLOUD: &str = "gcloud";
+    /// Cursor IDE CLI tool.
     pub const CURSOR: &str = "cursor";
 }
 

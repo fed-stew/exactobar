@@ -135,9 +135,8 @@ impl Default for HttpClient {
     fn default() -> Self {
         Self::new().unwrap_or_else(|e| {
             panic!(
-                "Failed to create default HTTP client: {}. \
-                This usually indicates a broken TLS/SSL configuration.",
-                e
+                "Failed to create default HTTP client: {e}. \
+                This usually indicates a broken TLS/SSL configuration."
             )
         })
     }

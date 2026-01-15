@@ -4,15 +4,17 @@
 #![warn(clippy::pedantic)]
 #![allow(clippy::module_name_repetitions)]
 #![allow(clippy::must_use_candidate)]
+#![allow(clippy::return_self_not_must_use)]
+#![allow(clippy::missing_errors_doc)]
 
-//! # ExactoBar Store
+//! # `ExactoBar` Store
 //!
-//! State management for the ExactoBar application.
+//! State management for the `ExactoBar` application.
 //!
 //! This crate provides:
 //!
-//! - **UsageStore**: Main state for provider usage data with watch channels
-//! - **SettingsStore**: User preferences with persistence
+//! - **`UsageStore`**: Main state for provider usage data with watch channels
+//! - **`SettingsStore`**: User preferences with persistence
 //! - **Persistence**: File I/O helpers for JSON data
 //!
 //! ## Usage
