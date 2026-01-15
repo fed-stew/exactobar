@@ -4,8 +4,12 @@
 
 [graph]
 targets = [
+    # macOS targets
     "aarch64-apple-darwin",
     "x86_64-apple-darwin",
+    # Linux targets (for CI which runs on ubuntu-latest)
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
 ]
 
 # Advisories - check for known vulnerabilities
