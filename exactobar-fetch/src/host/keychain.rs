@@ -153,26 +153,43 @@ impl KeychainApi for SystemKeychain {
 
 /// Common service names for providers.
 pub mod services {
+    /// Claude service name.
     pub const CLAUDE: &str = "claude";
+    /// OpenAI service name.
     pub const OPENAI: &str = "openai";
+    /// Cursor service name.
     pub const CURSOR: &str = "cursor";
+    /// Gemini service name.
     pub const GEMINI: &str = "gemini";
+    /// Copilot service name.
     pub const COPILOT: &str = "copilot";
+    /// GitHub service name.
     pub const GITHUB: &str = "github";
+    /// Vertex AI service name.
     pub const VERTEXAI: &str = "vertexai";
+    /// Factory service name.
     pub const FACTORY: &str = "factory";
+    /// z.ai service name.
     pub const ZAI: &str = "zai";
+    /// Augment service name.
     pub const AUGMENT: &str = "augment";
+    /// Kiro service name.
     pub const KIRO: &str = "kiro";
+    /// MiniMax service name.
     pub const MINIMAX: &str = "minimax";
+    /// Antigravity service name.
     pub const ANTIGRAVITY: &str = "antigravity";
 }
 
 /// Common account names for credentials.
 pub mod accounts {
+    /// API key account name.
     pub const API_KEY: &str = "api_key";
+    /// OAuth token account name.
     pub const OAUTH_TOKEN: &str = "oauth_token";
+    /// OAuth refresh token account name.
     pub const REFRESH_TOKEN: &str = "refresh_token";
+    /// Session key account name.
     pub const SESSION_KEY: &str = "session_key";
 }
 

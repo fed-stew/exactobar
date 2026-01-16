@@ -16,6 +16,7 @@ pub struct AntigravityLocalStrategy {
 }
 
 impl AntigravityLocalStrategy {
+    /// Creates a new Antigravity local strategy.
     pub fn new() -> Self {
         Self {
             probe: AntigravityProbe::new(),

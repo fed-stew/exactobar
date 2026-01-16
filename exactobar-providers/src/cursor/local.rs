@@ -147,12 +147,14 @@ impl CursorLocalReader {
         Some(home.join("Library/Application Support/Cursor"))
     }
 
+    /// Get the Cursor config directory.
     #[cfg(target_os = "linux")]
     pub fn config_dir() -> Option<PathBuf> {
         let home = dirs::home_dir()?;
         Some(home.join(".config/Cursor"))
     }
 
+    /// Get the Cursor config directory.
     #[cfg(target_os = "windows")]
     pub fn config_dir() -> Option<PathBuf> {
         let app_data = dirs::data_local_dir()?;

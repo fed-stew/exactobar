@@ -107,7 +107,12 @@ pub enum HttpError {
 pub enum KeychainError {
     /// Credential not found.
     #[error("Credential not found for {service}/{account}")]
-    NotFound { service: String, account: String },
+    NotFound {
+        /// Service name requested.
+        service: String,
+        /// Account name requested.
+        account: String,
+    },
 
     /// Access denied.
     #[error("Access denied to keychain")]
@@ -162,9 +167,14 @@ pub enum ProcessError {
     #[error("Command timed out after {0:?}")]
     Timeout(Duration),
 
-    /// Non-zero exit code.
+    /// Command exited with a non-zero code.
     #[error("Command exited with code {code}: {stderr}")]
-    NonZeroExit { code: i32, stderr: String },
+    NonZeroExit {
+        /// Exit code returned by the command.
+        code: i32,
+        /// Captured stderr output.
+        stderr: String,
+    },
 
     /// IO error.
     #[error("IO error: {0}")]
@@ -200,7 +210,12 @@ pub enum PtyError {
 
     /// Non-zero exit code.
     #[error("Command exited with code {code}: {output}")]
-    NonZeroExit { code: i32, output: String },
+    NonZeroExit {
+        /// Exit code returned by the command.
+        code: i32,
+        /// Captured command output.
+        output: String,
+    },
 
     /// IO error.
     #[error("IO error: {0}")]
@@ -208,7 +223,12 @@ pub enum PtyError {
 
     /// Stop pattern matched.
     #[error("Stopped on pattern: {pattern}")]
-    StoppedOnPattern { pattern: String, output: String },
+    StoppedOnPattern {
+        /// Pattern that caused the process to stop.
+        pattern: String,
+        /// Captured command output.
+        output: String,
+    },
 
     /// PTY system unavailable.
     #[error("PTY system unavailable: {0}")]
@@ -232,7 +252,12 @@ pub enum BrowserError {
 
     /// Cookie database not found.
     #[error("Cookie database not found for {browser}: {path}")]
-    DatabaseNotFound { browser: String, path: String },
+    DatabaseNotFound {
+        /// Browser name.
+        browser: String,
+        /// Missing database path.
+        path: String,
+    },
 
     /// Failed to read cookies.
     #[error("Failed to read cookies: {0}")]

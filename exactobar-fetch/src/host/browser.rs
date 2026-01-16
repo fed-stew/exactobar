@@ -34,11 +34,17 @@ use crate::error::BrowserError;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Browser {
+    /// Apple Safari browser (macOS only).
     Safari,
+    /// Google Chrome browser.
     Chrome,
+    /// Mozilla Firefox browser.
     Firefox,
+    /// Microsoft Edge browser.
     Edge,
+    /// Arc browser (Chromium-based).
     Arc,
+    /// Brave browser (Chromium-based).
     Brave,
 }
 
@@ -691,6 +697,7 @@ fn decrypt_aes_cbc(key: &[u8], iv: &[u8], data: &[u8]) -> Result<Vec<u8>, String
 
 // Hex encoding helper for key material (used via environment variables)
 mod hex {
+    #[allow(dead_code)]
     pub fn encode(data: &[u8]) -> String {
         data.iter().map(|b| format!("{:02x}", b)).collect()
     }

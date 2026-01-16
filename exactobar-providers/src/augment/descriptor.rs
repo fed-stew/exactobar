@@ -6,6 +6,7 @@ use exactobar_fetch::{FetchContext, FetchPipeline, SourceMode};
 use crate::descriptor::{CliConfig, FetchPlan, ProviderDescriptor, TokenCostConfig};
 use super::strategies::AugmentWebStrategy;
 
+/// Builds the provider descriptor for Augment.
 pub fn augment_descriptor() -> ProviderDescriptor {
     ProviderDescriptor {
         id: ProviderKind::Augment,

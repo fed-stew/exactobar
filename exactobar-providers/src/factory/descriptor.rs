@@ -6,6 +6,7 @@ use exactobar_fetch::{FetchContext, FetchPipeline, SourceMode};
 use crate::descriptor::{CliConfig, FetchPlan, ProviderDescriptor, TokenCostConfig};
 use super::strategies::{FactoryLocalStrategy, FactoryWebStrategy};
 
+/// Builds the provider descriptor for Factory/Droid.
 pub fn factory_descriptor() -> ProviderDescriptor {
     ProviderDescriptor {
         id: ProviderKind::Factory,

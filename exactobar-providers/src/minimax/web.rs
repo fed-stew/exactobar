@@ -171,6 +171,7 @@ impl MiniMaxLocalStorage {
     ///
     /// Returns paths for Chrome, Arc, and Edge on macOS.
     /// Each browser stores localStorage in a LevelDB database.
+    /// Returns candidate browser localStorage paths for MiniMax tokens.
     #[cfg(target_os = "macos")]
     pub fn local_storage_paths() -> Vec<PathBuf> {
         let mut paths = Vec::new();
@@ -208,6 +209,7 @@ impl MiniMaxLocalStorage {
         paths
     }
 
+    /// Returns candidate browser localStorage paths for MiniMax tokens.
     #[cfg(target_os = "linux")]
     pub fn local_storage_paths() -> Vec<PathBuf> {
         let mut paths = Vec::new();
@@ -229,6 +231,7 @@ impl MiniMaxLocalStorage {
         paths
     }
 
+    /// Returns candidate browser localStorage paths for MiniMax tokens.
     #[cfg(target_os = "windows")]
     pub fn local_storage_paths() -> Vec<PathBuf> {
         let mut paths = Vec::new();

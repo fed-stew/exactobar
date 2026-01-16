@@ -124,12 +124,14 @@ impl ClaudeLogReader {
         Some(home.join(".local/share/claude/logs"))
     }
 
+    /// Get Claude log directory.
     #[cfg(target_os = "linux")]
     pub fn log_dir() -> Option<PathBuf> {
         let data_dir = dirs::data_local_dir()?;
         Some(data_dir.join("claude/logs"))
     }
 
+    /// Get Claude log directory.
     #[cfg(target_os = "windows")]
     pub fn log_dir() -> Option<PathBuf> {
         let data_dir = dirs::data_local_dir()?;

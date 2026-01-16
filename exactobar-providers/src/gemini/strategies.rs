@@ -21,6 +21,7 @@ pub struct GeminiOAuthStrategy {
 }
 
 impl GeminiOAuthStrategy {
+    /// Creates a new OAuth-based Gemini strategy.
     pub fn new() -> Self {
         Self {
             probe: GeminiProbe::new(),
@@ -106,6 +107,7 @@ pub struct GeminiCliStrategy {
 }
 
 impl GeminiCliStrategy {
+    /// Creates a new CLI-based Gemini strategy.
     pub fn new() -> Self {
         Self { command: "gemini" }
     }

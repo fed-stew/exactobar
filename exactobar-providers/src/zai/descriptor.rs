@@ -6,6 +6,7 @@ use exactobar_fetch::{FetchContext, FetchPipeline, SourceMode};
 use crate::descriptor::{CliConfig, FetchPlan, ProviderDescriptor, TokenCostConfig};
 use super::strategies::ZaiApiStrategy;
 
+/// Builds the provider descriptor for z.ai.
 pub fn zai_descriptor() -> ProviderDescriptor {
     ProviderDescriptor {
         id: ProviderKind::Zai,

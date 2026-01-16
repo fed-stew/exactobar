@@ -28,7 +28,12 @@ pub enum CodexError {
 
     /// RPC returned an error.
     #[error("RPC error ({code}): {message}")]
-    RpcError { code: i32, message: String },
+    RpcError {
+        /// RPC error code.
+        code: i32,
+        /// RPC error message.
+        message: String,
+    },
 
     /// RPC returned an empty response.
     #[error("RPC returned empty response")]

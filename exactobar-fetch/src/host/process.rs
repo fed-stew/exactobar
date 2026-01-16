@@ -194,9 +194,13 @@ impl ProcessRunner {
 
 /// Common CLI tool names.
 pub mod commands {
+    /// Claude CLI command.
     pub const CLAUDE: &str = "claude";
+    /// GitHub CLI command.
     pub const GH: &str = "gh";
+    /// Google Cloud CLI command.
     pub const GCLOUD: &str = "gcloud";
+    /// Cursor CLI command.
     pub const CURSOR: &str = "cursor";
 }
 

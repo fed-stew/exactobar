@@ -25,11 +25,13 @@ const HAILUOAI_API: &str = "https://hailuoai.com/api/user/usage";
 // Web Strategy
 // ============================================================================
 
+/// Fetch strategy that reads MiniMax usage via web cookies.
 pub struct MiniMaxWebStrategy {
     domain: &'static str,
 }
 
 impl MiniMaxWebStrategy {
+    /// Creates a new MiniMax web strategy.
     pub fn new() -> Self {
         Self {
             domain: MINIMAX_DOMAIN,
@@ -118,11 +120,13 @@ impl FetchStrategy for MiniMaxWebStrategy {
 ///
 /// Hailuoai.com is the consumer-facing web interface for MiniMax.
 /// It may have different authentication cookies than api.minimax.chat.
+/// Fetch strategy that reads MiniMax usage via hailuoai.com cookies.
 pub struct HailuoaiWebStrategy {
     domain: &'static str,
 }
 
 impl HailuoaiWebStrategy {
+    /// Creates a new Hailuoai web strategy.
     pub fn new() -> Self {
         Self {
             domain: HAILUOAI_DOMAIN,
@@ -214,9 +218,11 @@ impl FetchStrategy for HailuoaiWebStrategy {
 ///
 /// MiniMax stores auth tokens in browser localStorage under hailuoai.com.
 /// This strategy attempts to extract and use those tokens.
+/// Fetch strategy that reads MiniMax usage via browser localStorage tokens.
 pub struct MiniMaxLocalStorageStrategy;
 
 impl MiniMaxLocalStorageStrategy {
+    /// Creates a new MiniMax localStorage strategy.
     pub fn new() -> Self {
         Self
     }
@@ -290,9 +296,11 @@ impl FetchStrategy for MiniMaxLocalStorageStrategy {
 // Local Strategy
 // ============================================================================
 
+/// Fetch strategy that reads MiniMax usage from local config.
 pub struct MiniMaxLocalStrategy;
 
 impl MiniMaxLocalStrategy {
+    /// Creates a new MiniMax local strategy.
     pub fn new() -> Self {
         Self
     }

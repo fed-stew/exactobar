@@ -18,11 +18,13 @@ const AUGMENT_DOMAIN: &str = "augmentcode.com";
 const AUGMENT_API: &str = "https://api.augmentcode.com/v1/usage";
 const AUGMENT_KEEPALIVE: &str = "https://augmentcode.com/api/keepalive";
 
+/// Fetch strategy that reads Augment usage via web cookies.
 pub struct AugmentWebStrategy {
     domain: &'static str,
 }
 
 impl AugmentWebStrategy {
+    /// Creates a new Augment web strategy.
     pub fn new() -> Self {
         Self {
             domain: AUGMENT_DOMAIN,

@@ -13,11 +13,13 @@ use super::token_store::ZaiTokenStore;
 
 const ZAI_API: &str = "https://api.z.ai/v1/usage";
 
+/// Fetch strategy that reads z.ai usage via API key.
 pub struct ZaiApiStrategy {
     api_base: &'static str,
 }
 
 impl ZaiApiStrategy {
+    /// Creates a new z.ai API strategy.
     pub fn new() -> Self {
         Self { api_base: ZAI_API }
     }

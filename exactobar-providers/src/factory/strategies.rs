@@ -18,11 +18,13 @@ const FACTORY_API: &str = "https://app.factory.ai/api/usage";
 // Web Strategy
 // ============================================================================
 
+/// Fetch strategy that loads Factory usage via browser cookies.
 pub struct FactoryWebStrategy {
     domain: &'static str,
 }
 
 impl FactoryWebStrategy {
+    /// Creates a new Factory web strategy.
     pub fn new() -> Self {
         Self {
             domain: FACTORY_DOMAIN,
@@ -100,9 +102,11 @@ impl FetchStrategy for FactoryWebStrategy {
 // Local Strategy
 // ============================================================================
 
+/// Fetch strategy that reads Factory usage from local config.
 pub struct FactoryLocalStrategy;
 
 impl FactoryLocalStrategy {
+    /// Creates a new Factory local strategy.
     pub fn new() -> Self {
         Self
     }

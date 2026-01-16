@@ -8,6 +8,7 @@ use super::strategies::{
     HailuoaiWebStrategy, MiniMaxLocalStorageStrategy, MiniMaxLocalStrategy, MiniMaxWebStrategy,
 };
 
+/// Builds the provider descriptor for MiniMax.
 pub fn minimax_descriptor() -> ProviderDescriptor {
     ProviderDescriptor {
         id: ProviderKind::MiniMax,

@@ -17,11 +17,13 @@ const COPILOT_API_BASE: &str = "https://api.github.com";
 // API Strategy (Device Flow OAuth)
 // ============================================================================
 
+/// Fetch strategy that reads Copilot usage via the GitHub API.
 pub struct CopilotApiStrategy {
     api_base: &'static str,
 }
 
 impl CopilotApiStrategy {
+    /// Creates a new Copilot API strategy.
     pub fn new() -> Self {
         Self {
             api_base: COPILOT_API_BASE,
@@ -110,9 +112,11 @@ impl FetchStrategy for CopilotApiStrategy {
 // Environment Variable Strategy
 // ============================================================================
 
+/// Fetch strategy that reads Copilot usage via environment variables.
 pub struct CopilotEnvStrategy;
 
 impl CopilotEnvStrategy {
+    /// Creates a new Copilot environment strategy.
     pub fn new() -> Self {
         Self
     }

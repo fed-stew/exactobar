@@ -25,6 +25,7 @@ pub struct VertexAIOAuthStrategy {
 }
 
 impl VertexAIOAuthStrategy {
+    /// Creates a new Vertex AI OAuth strategy.
     pub fn new() -> Self {
         Self {
             refresher: VertexAITokenRefresher::new(),
@@ -111,9 +112,11 @@ impl FetchStrategy for VertexAIOAuthStrategy {
 // Local Strategy (Token Cost Tracking)
 // ============================================================================
 
+/// Fetch strategy that reads Vertex AI usage from local logs.
 pub struct VertexAILocalStrategy;
 
 impl VertexAILocalStrategy {
+    /// Creates a new Vertex AI local strategy.
     pub fn new() -> Self {
         Self
     }

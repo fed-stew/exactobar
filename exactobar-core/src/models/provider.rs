@@ -375,17 +375,29 @@ impl Default for ProviderColor {
 #[serde(rename_all = "snake_case")]
 pub enum IconStyle {
     #[default]
+    /// OpenAI Codex icon style.
     Codex,
+    /// Anthropic Claude icon style.
     Claude,
+    /// Cursor icon style.
     Cursor,
+    /// Google Gemini icon style.
     Gemini,
+    /// GitHub Copilot icon style.
     Copilot,
+    /// Factory/Droid icon style.
     Factory,
+    /// Vertex AI icon style.
     VertexAI,
+    /// z.ai icon style.
     Zai,
+    /// Augment icon style.
     Augment,
+    /// Kiro icon style.
     Kiro,
+    /// Antigravity icon style.
     Antigravity,
+    /// MiniMax icon style.
     MiniMax,
     /// Combined/aggregate view icon.
     Combined,

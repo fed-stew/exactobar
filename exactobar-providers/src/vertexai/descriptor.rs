@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use crate::descriptor::{CliConfig, FetchPlan, ProviderDescriptor, TokenCostConfig};
 use super::strategies::{VertexAILocalStrategy, VertexAIOAuthStrategy};
 
+/// Builds the provider descriptor for Vertex AI.
 pub fn vertexai_descriptor() -> ProviderDescriptor {
     ProviderDescriptor {
         id: ProviderKind::VertexAI,

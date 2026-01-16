@@ -217,15 +217,23 @@ fn parse_statuspage_indicator(indicator: &str) -> StatusIndicator {
 /// Known status page URLs for providers.
 pub mod urls {
     // === API Endpoints (statuspage.io format) ===
+    /// OpenAI status page API endpoint.
     pub const OPENAI: &str = "https://status.openai.com/api/v2/status.json";
+    /// Anthropic status page API endpoint.
     pub const ANTHROPIC: &str = "https://status.anthropic.com/api/v2/status.json";
+    /// GitHub status page API endpoint.
     pub const GITHUB: &str = "https://www.githubstatus.com/api/v2/status.json";
 
     // === User-facing status pages ===
+    /// OpenAI status page URL.
     pub const OPENAI_PAGE: &str = "https://status.openai.com";
+    /// Anthropic status page URL.
     pub const ANTHROPIC_PAGE: &str = "https://status.anthropic.com";
+    /// GitHub status page URL.
     pub const GITHUB_PAGE: &str = "https://www.githubstatus.com";
+    /// Google Cloud status page URL.
     pub const GOOGLE_CLOUD_PAGE: &str = "https://status.cloud.google.com";
+    /// Cursor status page URL.
     pub const CURSOR_PAGE: &str = "https://status.cursor.com";
 
     /// Returns the API URL for a given provider name (lowercase).

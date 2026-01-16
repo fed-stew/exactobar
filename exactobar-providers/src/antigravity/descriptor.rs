@@ -6,6 +6,7 @@ use exactobar_fetch::{FetchContext, FetchPipeline, SourceMode};
 use crate::descriptor::{CliConfig, FetchPlan, ProviderDescriptor, TokenCostConfig};
 use super::strategies::AntigravityLocalStrategy;
 
+/// Builds the provider descriptor for Antigravity.
 pub fn antigravity_descriptor() -> ProviderDescriptor {
     ProviderDescriptor {
         id: ProviderKind::Antigravity,

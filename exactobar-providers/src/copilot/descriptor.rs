@@ -6,6 +6,7 @@ use exactobar_fetch::{FetchContext, FetchPipeline, SourceMode};
 use crate::descriptor::{CliConfig, FetchPlan, ProviderDescriptor, TokenCostConfig};
 use super::strategies::{CopilotApiStrategy, CopilotEnvStrategy};
 
+/// Builds the provider descriptor for Copilot.
 pub fn copilot_descriptor() -> ProviderDescriptor {
     ProviderDescriptor {
         id: ProviderKind::Copilot,

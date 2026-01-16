@@ -6,6 +6,7 @@ use exactobar_fetch::{FetchContext, FetchPipeline, SourceMode};
 use crate::descriptor::{CliConfig, FetchPlan, ProviderDescriptor, TokenCostConfig};
 use super::strategies::KiroCliStrategy;
 
+/// Builds the provider descriptor for Kiro.
 pub fn kiro_descriptor() -> ProviderDescriptor {
     ProviderDescriptor {
         id: ProviderKind::Kiro,
