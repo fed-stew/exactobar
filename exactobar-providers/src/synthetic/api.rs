@@ -25,6 +25,8 @@ pub const QUOTA_ENDPOINT: &str = "/v2/quotas";
 pub struct SyntheticQuotaResponse {
     /// Subscription info (optional for flexibility).
     pub subscription: Option<SubscriptionInfo>,
+    // Search info for Pro tier accounts.
+    pub search: Option<SearchInfo>,
 }
 
 /// Subscription details from the API.
@@ -34,12 +36,19 @@ pub struct SubscriptionInfo {
     /// Request limit per period.
     pub limit: i64,
 
-    /// Requests used in current period.
-    pub requests: i64,
+    /// Requests used in current period. (measured in partial requests)
+    pub requests: f64,
 
     /// When the quota resets (ISO 8601 format).
     #[serde(rename = "renewsAt")]
     pub renews_at: Option<String>,
+}
+
+/// Search details from the API.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchInfo {
+    pub hourly: SubscriptionInfo,
 }
 
 impl SyntheticQuotaResponse {
@@ -182,17 +191,24 @@ mod tests {
     #[test]
     fn test_parse_quota_response() {
         let json = r#"{
-            "subscription": {
-                "limit": 135,
-                "requests": 50,
-                "renewsAt": "2025-09-21T14:36:14.288Z"
+          "subscription": {
+            "limit": 135,
+            "requests": 50.0,
+            "renewsAt": "2026-01-16T19:52:56.048Z"
+          },
+          "search": {
+            "hourly": {
+              "limit": 250,
+              "requests": 0,
+              "renewsAt": "2026-01-16T17:17:14.049Z"
             }
+          }
         }"#;
 
         let response: SyntheticQuotaResponse = serde_json::from_str(json).unwrap();
         let sub = response.subscription.unwrap();
         assert_eq!(sub.limit, 135);
-        assert_eq!(sub.requests, 50);
+        assert_eq!(sub.requests, 50.0);
         assert!(sub.renews_at.is_some());
     }
 
@@ -201,9 +217,17 @@ mod tests {
         let response = SyntheticQuotaResponse {
             subscription: Some(SubscriptionInfo {
                 limit: 100,
-                requests: 50,
+                requests: 50.0,
                 renews_at: Some("2025-09-21T14:36:14.288Z".to_string()),
             }),
+
+            search: Some(SearchInfo {
+                hourly: SubscriptionInfo {
+                    limit: 100,
+                    requests: 50.0,
+                    renews_at: Some("2025-09-21T14:36:14.288Z".to_string()),
+                },
+            })
         };
 
         let snapshot = response.to_snapshot();
@@ -218,9 +242,17 @@ mod tests {
         let response = SyntheticQuotaResponse {
             subscription: Some(SubscriptionInfo {
                 limit: 0,
-                requests: 0,
+                requests: 0.0,
                 renews_at: None,
             }),
+
+            search: Some(SearchInfo {
+                hourly: SubscriptionInfo {
+                    limit: 100,
+                    requests: 50.0,
+                    renews_at: Some("2025-09-21T14:36:14.288Z".to_string()),
+                },
+            })
         };
 
         let snapshot = response.to_snapshot();
