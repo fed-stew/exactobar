@@ -137,6 +137,8 @@ impl ZaiTokenStore {
     /// Load from keychain using keyring crate directly (sync).
     #[instrument]
     pub fn load_from_keychain_sync() -> Option<String> {
+        use exactobar_fetch::host::keychain::get_password_cached;
+
         // First, try the Settings UI keychain location (ExactoBar-zai)
         if let Some(token) = exactobar_store::get_api_key("zai") {
             debug!(
@@ -148,13 +150,9 @@ impl ZaiTokenStore {
 
         // Fall back to legacy service names for compatibility
         for service in LEGACY_KEYCHAIN_SERVICES {
-            if let Ok(entry) = keyring::Entry::new(service, LEGACY_KEYCHAIN_ACCOUNT) {
-                if let Ok(token) = entry.get_password() {
-                    if !token.is_empty() {
-                        debug!(service = %service, "Found token in legacy keychain");
-                        return Some(token);
-                    }
-                }
+            if let Some(token) = get_password_cached(service, LEGACY_KEYCHAIN_ACCOUNT) {
+                debug!(service = %service, "Found token in legacy keychain");
+                return Some(token);
             }
         }
         None

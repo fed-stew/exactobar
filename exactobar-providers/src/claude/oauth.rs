@@ -134,19 +134,14 @@ impl ClaudeOAuthCredentials {
     }
 
     /// Load credentials from all sources, returning the first valid one.
+    ///
+    /// Priority order (file first to avoid keychain password prompts!):
+    /// 1. File (~/.claude/.credentials.json) - no password prompt
+    /// 2. Keychain (Claude Code-credentials) - may prompt
+    /// 3. Legacy keychain (claude.ai) - may prompt
     #[instrument]
     pub fn load() -> Result<Self, ClaudeError> {
-        // Try keychain first (preferred)
-        if let Ok(creds) = Self::load_from_keychain() {
-            if creds.is_valid() {
-                debug!(source = ?creds.source, "Loaded valid credentials from keychain");
-                return Ok(creds);
-            } else {
-                warn!("Keychain credentials exist but are invalid/expired");
-            }
-        }
-
-        // Try file
+        // Try file FIRST (no password prompt!)
         if let Ok(creds) = Self::load_from_file() {
             if creds.is_valid() {
                 debug!(source = ?creds.source, "Loaded valid credentials from file");
@@ -156,7 +151,17 @@ impl ClaudeOAuthCredentials {
             }
         }
 
-        // Try legacy keychain
+        // Then try keychain (may prompt for password)
+        if let Ok(creds) = Self::load_from_keychain() {
+            if creds.is_valid() {
+                debug!(source = ?creds.source, "Loaded valid credentials from keychain");
+                return Ok(creds);
+            } else {
+                warn!("Keychain credentials exist but are invalid/expired");
+            }
+        }
+
+        // Legacy keychain last (may prompt for password)
         if let Ok(creds) = Self::load_from_legacy_keychain() {
             if creds.is_valid() {
                 debug!(source = ?creds.source, "Loaded valid credentials from legacy keychain");
@@ -170,40 +175,35 @@ impl ClaudeOAuthCredentials {
     /// Load credentials from macOS Keychain.
     #[instrument]
     pub fn load_from_keychain() -> Result<Self, ClaudeError> {
+        use exactobar_fetch::host::keychain::get_password_cached;
+
         debug!("Trying to load from keychain");
 
         // Try with current username first (Claude CLI stores credentials this way)
         let username = whoami::username();
         debug!(account = %username, "Trying keychain with username");
-        if let Ok(entry) = keyring::Entry::new(KEYCHAIN_SERVICE, &username) {
-            if let Ok(secret) = entry.get_password() {
-                debug!("Found credentials with username account");
-                return Self::parse_credentials(&secret, CredentialSource::Keychain);
-            }
+        if let Some(secret) = get_password_cached(KEYCHAIN_SERVICE, &username) {
+            debug!("Found credentials with username account");
+            return Self::parse_credentials(&secret, CredentialSource::Keychain);
         }
 
         // Fall back to empty account (legacy)
         debug!("Trying keychain with empty account");
-        let entry = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT)
-            .map_err(|e: keyring::Error| ClaudeError::CredentialsLoadError(e.to_string()))?;
+        if let Some(secret) = get_password_cached(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT) {
+            return Self::parse_credentials(&secret, CredentialSource::Keychain);
+        }
 
-        let secret = entry
-            .get_password()
-            .map_err(|_| ClaudeError::CredentialsNotFound)?;
-
-        Self::parse_credentials(&secret, CredentialSource::Keychain)
+        Err(ClaudeError::CredentialsNotFound)
     }
 
     /// Load credentials from legacy keychain entry.
     fn load_from_legacy_keychain() -> Result<Self, ClaudeError> {
+        use exactobar_fetch::host::keychain::get_password_cached;
+
         debug!("Trying to load from legacy keychain");
 
-        let entry = keyring::Entry::new(LEGACY_KEYCHAIN_SERVICE, LEGACY_KEYCHAIN_ACCOUNT)
-            .map_err(|e: keyring::Error| ClaudeError::CredentialsLoadError(e.to_string()))?;
-
-        let secret = entry
-            .get_password()
-            .map_err(|_| ClaudeError::CredentialsNotFound)?;
+        let secret = get_password_cached(LEGACY_KEYCHAIN_SERVICE, LEGACY_KEYCHAIN_ACCOUNT)
+            .ok_or(ClaudeError::CredentialsNotFound)?;
 
         // Legacy format might be just a token or JSON
         if secret.starts_with('{') {

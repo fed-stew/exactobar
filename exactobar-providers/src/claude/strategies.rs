@@ -55,7 +55,10 @@ impl FetchStrategy for ClaudeOAuthStrategy {
 
     #[instrument(skip(self, _ctx))]
     async fn is_available(&self, _ctx: &FetchContext) -> bool {
-        ClaudeOAuthCredentials::load().is_ok_and(|c| c.is_valid())
+        // Don't check credentials here - it may hit keychain and cause password prompts!
+        // Let fetch() handle credential loading and return appropriate errors.
+        // This is the "lazy" approach - we assume OAuth might be available and try.
+        true
     }
 
     #[instrument(skip(self, _ctx))]
@@ -278,13 +281,16 @@ impl FetchStrategy for ClaudeWebStrategy {
         FetchKind::WebCookies
     }
 
-    #[instrument(skip(self, ctx))]
-    async fn is_available(&self, ctx: &FetchContext) -> bool {
-        // Check if we can get cookies for claude.ai
-        ctx.browser
-            .import_cookies_auto(self.domain, Browser::default_priority())
-            .await
-            .is_ok()
+    #[instrument(skip(self, _ctx))]
+    async fn is_available(&self, _ctx: &FetchContext) -> bool {
+        // Don't try to import cookies here - it may hit Chrome Safe Storage keychain!
+        // Just check if any browser is installed (no keychain access).
+        // Let fetch() handle the actual cookie import and return appropriate errors.
+        !Browser::default_priority()
+            .iter()
+            .filter(|b| b.is_installed())
+            .collect::<Vec<_>>()
+            .is_empty()
     }
 
     #[instrument(skip(self, ctx))]

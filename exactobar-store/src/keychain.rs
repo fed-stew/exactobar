@@ -28,7 +28,7 @@
 //! ```
 
 use keyring::Entry;
-use tracing::{debug, warn};
+use tracing::debug;
 
 /// Service name prefix for `ExactoBar` credentials.
 const SERVICE_PREFIX: &str = "ExactoBar";
@@ -67,11 +67,16 @@ pub fn store_api_key(provider: &str, api_key: &str) -> Result<(), String> {
         .set_password(api_key)
         .map_err(|e| format!("Failed to store API key: {e}"))?;
 
+    // Invalidate the cache entry so the new value is picked up
+    exactobar_fetch::host::keychain::invalidate_cache_entry(&service, "api_key");
+
     debug!(provider = provider, "API key stored in keychain");
     Ok(())
 }
 
 /// Retrieve an API key from the system keychain.
+///
+/// This uses the global keychain cache to avoid multiple password prompts.
 ///
 /// # Arguments
 /// * `provider` - Provider identifier (e.g., "synthetic", "zai", "codex")
@@ -88,19 +93,15 @@ pub fn store_api_key(provider: &str, api_key: &str) -> Result<(), String> {
 /// ```
 pub fn get_api_key(provider: &str) -> Option<String> {
     let service = format!("{SERVICE_PREFIX}-{provider}");
-    let entry = Entry::new(&service, "api_key").ok()?;
 
-    match entry.get_password() {
-        Ok(key) if !key.is_empty() => {
-            debug!(provider = provider, "API key retrieved from keychain");
-            Some(key)
-        }
-        Ok(_) | Err(keyring::Error::NoEntry) => None, // Empty key treated as missing
-        Err(e) => {
-            warn!(provider = provider, error = %e, "Failed to retrieve API key");
-            None
-        }
+    // Use the cached getter to avoid multiple keychain prompts
+    let result = exactobar_fetch::host::keychain::get_password_cached(&service, "api_key");
+
+    if result.is_some() {
+        debug!(provider = provider, "API key retrieved from keychain");
     }
+
+    result
 }
 
 /// Delete an API key from the system keychain.
@@ -120,14 +121,19 @@ pub fn delete_api_key(provider: &str) -> Result<(), String> {
     let entry = Entry::new(&service, "api_key")
         .map_err(|e| format!("Failed to create keychain entry: {e}"))?;
 
-    match entry.delete_credential() {
+    let result = match entry.delete_credential() {
         Ok(()) => {
             debug!(provider = provider, "API key deleted from keychain");
             Ok(())
         }
         Err(keyring::Error::NoEntry) => Ok(()), // Already deleted, that's fine
         Err(e) => Err(format!("Failed to delete API key: {e}")),
-    }
+    };
+
+    // Invalidate the cache entry regardless of deletion result
+    exactobar_fetch::host::keychain::invalidate_cache_entry(&service, "api_key");
+
+    result
 }
 
 /// Check if an API key exists in the system keychain.

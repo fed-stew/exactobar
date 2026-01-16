@@ -64,9 +64,12 @@ impl FetchStrategy for CopilotApiStrategy {
         FetchKind::OAuth
     }
 
-    #[instrument(skip(self, ctx))]
-    async fn is_available(&self, ctx: &FetchContext) -> bool {
-        self.get_oauth_token(ctx).await.is_some()
+    #[instrument(skip(self, _ctx))]
+    async fn is_available(&self, _ctx: &FetchContext) -> bool {
+        // Don't check for OAuth token here - it may hit keychain and cause password prompts!
+        // Let fetch() handle credential loading and return appropriate errors.
+        // This is the "lazy" approach - we assume OAuth might be available and try.
+        true
     }
 
     #[instrument(skip(self, ctx))]

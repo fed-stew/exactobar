@@ -581,6 +581,69 @@ fn copy_to_temp(source: &PathBuf) -> Result<PathBuf, BrowserError> {
     Ok(temp_path)
 }
 
+/// Our keychain service for caching browser Safe Storage keys.
+/// This avoids repeated password prompts for external keychain access.
+const OUR_BROWSER_KEY_CACHE_SERVICE: &str = "ExactoBar-browser-keys";
+
+/// Get browser Safe Storage key, preferring our cached copy.
+///
+/// Strategy:
+/// 1. Check our own keychain cache (no prompt)
+/// 2. If not cached, read from browser's keychain (may prompt once)
+/// 3. Cache the result in our own keychain for future use
+#[cfg(target_os = "macos")]
+fn get_browser_safe_storage_key(browser: Browser) -> Result<String, BrowserError> {
+    use keyring::Entry;
+
+    let (external_service, cache_account) = match browser {
+        Browser::Chrome => ("Chrome Safe Storage", "chrome"),
+        Browser::Edge => ("Microsoft Edge Safe Storage", "edge"),
+        Browser::Arc => ("Arc Safe Storage", "arc"),
+        Browser::Brave => ("Brave Safe Storage", "brave"),
+        _ => {
+            return Err(BrowserError::DecryptionFailed(
+                "Not a Chromium browser".to_string(),
+            ));
+        }
+    };
+
+    // 1. Check our own keychain cache first (no password prompt!)
+    if let Some(cached) =
+        crate::host::keychain::get_password_cached(OUR_BROWSER_KEY_CACHE_SERVICE, cache_account)
+    {
+        trace!(browser = %browser.display_name(), "Using cached Safe Storage key");
+        return Ok(cached);
+    }
+
+    // 2. Not in our cache - read from external keychain (may prompt)
+    debug!(browser = %browser.display_name(), "Reading Safe Storage key from external keychain");
+    let password =
+        crate::host::keychain::get_password_cached(external_service, "").ok_or_else(|| {
+            BrowserError::DecryptionFailed(format!("No keychain entry for {external_service}"))
+        })?;
+
+    // 3. Cache it in our own keychain for next time
+    if let Ok(entry) = Entry::new(OUR_BROWSER_KEY_CACHE_SERVICE, cache_account) {
+        if entry.set_password(&password).is_ok() {
+            debug!(browser = %browser.display_name(), "Cached Safe Storage key in our keychain");
+            // Invalidate the in-memory cache so it picks up the new value
+            crate::host::keychain::invalidate_cache_entry(
+                OUR_BROWSER_KEY_CACHE_SERVICE,
+                cache_account,
+            );
+        }
+    }
+
+    Ok(password)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn get_browser_safe_storage_key(_browser: Browser) -> Result<String, BrowserError> {
+    Err(BrowserError::DecryptionFailed(
+        "Browser Safe Storage key only available on macOS".to_string(),
+    ))
+}
+
 /// Decrypt a Chromium encrypted cookie value.
 #[cfg(target_os = "macos")]
 fn decrypt_chromium_cookie(encrypted: &[u8], browser: Browser) -> Result<String, BrowserError> {
@@ -601,26 +664,8 @@ fn decrypt_chromium_cookie(encrypted: &[u8], browser: Browser) -> Result<String,
         )));
     }
 
-    // Get the encryption key from Keychain
-    let service_name = match browser {
-        Browser::Chrome => "Chrome Safe Storage",
-        Browser::Edge => "Microsoft Edge Safe Storage",
-        Browser::Arc => "Arc Safe Storage",
-        Browser::Brave => "Brave Safe Storage",
-        _ => {
-            return Err(BrowserError::DecryptionFailed(
-                "Not a Chromium browser".to_string(),
-            ));
-        }
-    };
-
-    // Try to get key from keychain using keyring crate
-    let entry = keyring::Entry::new(service_name, "")
-        .map_err(|e| BrowserError::DecryptionFailed(format!("Keychain error: {e}")))?;
-
-    let password = entry
-        .get_password()
-        .map_err(|e| BrowserError::DecryptionFailed(format!("No keychain entry: {e}")))?;
+    // Get the encryption key - try our cache first, then external keychain
+    let password = get_browser_safe_storage_key(browser)?;
 
     // Derive the actual encryption key using PBKDF2
     // Chrome uses: PBKDF2(password, salt="saltysalt", iterations=1003, dkLen=16)

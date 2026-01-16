@@ -1823,6 +1823,7 @@ dependencies = [
  "chrono",
  "dirs 5.0.1",
  "exactobar-core",
+ "exactobar-fetch",
  "keyring",
  "serde",
  "serde_json",

@@ -9,6 +9,7 @@ description = "State management for ExactoBar"
 
 [dependencies]
 exactobar-core = { workspace = true }
+exactobar-fetch = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

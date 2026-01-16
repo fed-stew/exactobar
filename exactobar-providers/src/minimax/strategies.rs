@@ -53,12 +53,15 @@ impl FetchStrategy for MiniMaxWebStrategy {
         FetchKind::WebCookies
     }
 
-    #[instrument(skip(self, ctx))]
-    async fn is_available(&self, ctx: &FetchContext) -> bool {
-        ctx.browser
-            .import_cookies_auto(self.domain, Browser::default_priority())
-            .await
-            .is_ok()
+    #[instrument(skip(self, _ctx))]
+    async fn is_available(&self, _ctx: &FetchContext) -> bool {
+        // Don't try to import cookies here - it may hit Chrome Safe Storage keychain!
+        // Just check if any browser is installed (no keychain access).
+        !Browser::default_priority()
+            .iter()
+            .filter(|b| b.is_installed())
+            .collect::<Vec<_>>()
+            .is_empty()
     }
 
     #[instrument(skip(self, ctx))]
@@ -150,12 +153,15 @@ impl FetchStrategy for HailuoaiWebStrategy {
         FetchKind::WebCookies
     }
 
-    #[instrument(skip(self, ctx))]
-    async fn is_available(&self, ctx: &FetchContext) -> bool {
-        ctx.browser
-            .import_cookies_auto(self.domain, Browser::default_priority())
-            .await
-            .is_ok()
+    #[instrument(skip(self, _ctx))]
+    async fn is_available(&self, _ctx: &FetchContext) -> bool {
+        // Don't try to import cookies here - it may hit Chrome Safe Storage keychain!
+        // Just check if any browser is installed (no keychain access).
+        !Browser::default_priority()
+            .iter()
+            .filter(|b| b.is_installed())
+            .collect::<Vec<_>>()
+            .is_empty()
     }
 
     #[instrument(skip(self, ctx))]

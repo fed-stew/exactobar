@@ -23,14 +23,18 @@ use super::error::CopilotError;
 // Constants
 // ============================================================================
 
-/// Keychain service name for Copilot.
+/// Keychain service name for Copilot (external, owned by Copilot).
 const KEYCHAIN_SERVICE: &str = "github.com/copilot";
 
 /// Keychain account name.
 const KEYCHAIN_ACCOUNT: &str = "oauth_token";
 
-/// Alternative keychain service (GitHub CLI).
+/// Alternative keychain service (GitHub CLI, external).
 const GH_CLI_KEYCHAIN_SERVICE: &str = "gh:github.com";
+
+/// Our own keychain service for caching Copilot tokens.
+/// This avoids repeated password prompts for external keychain access.
+const OUR_COPILOT_CACHE_SERVICE: &str = "ExactoBar-copilot-token";
 
 /// Environment variable for Copilot token.
 const COPILOT_TOKEN_ENV: &str = "COPILOT_API_TOKEN";
@@ -96,34 +100,35 @@ impl CopilotTokenStore {
 
     /// Load token from any available source.
     ///
-    /// Priority:
-    /// 1. Keychain
-    /// 2. gh CLI
-    /// 3. Environment
-    /// 4. File
+    /// Priority (file/env first to avoid keychain prompts!):
+    /// 1. Environment (COPILOT_API_TOKEN, GITHUB_TOKEN) - no prompt
+    /// 2. File (~/.copilot/token.json) - no prompt
+    /// 3. gh CLI config (~/.config/gh/hosts.yml) - no prompt
+    /// 4. Our cached keychain - no prompt
+    /// 5. External keychain (may prompt, then cached)
     #[instrument(skip(self))]
     pub fn load(&self) -> Option<String> {
-        // Try keychain first
-        if let Some(token) = self.load_from_keychain() {
-            debug!(source = "keychain", "Loaded token");
-            return Some(token);
-        }
-
-        // Try gh CLI
-        if let Some(token) = self.load_from_gh_cli() {
-            debug!(source = "gh_cli", "Loaded token");
-            return Some(token);
-        }
-
-        // Try environment
+        // Try environment first (no prompt)
         if let Some(token) = Self::load_from_env() {
             debug!(source = "env", "Loaded token");
             return Some(token);
         }
 
-        // Try file
+        // Try file (no prompt)
         if let Some(token) = self.load_from_file() {
             debug!(source = "file", "Loaded token");
+            return Some(token);
+        }
+
+        // Try gh CLI config file (no prompt)
+        if let Some(token) = self.load_from_gh_cli() {
+            debug!(source = "gh_cli", "Loaded token");
+            return Some(token);
+        }
+
+        // Try keychain (our cache first, then external)
+        if let Some(token) = self.load_from_keychain() {
+            debug!(source = "keychain", "Loaded token");
             return Some(token);
         }
 
@@ -131,24 +136,58 @@ impl CopilotTokenStore {
     }
 
     /// Load token from OS keychain.
+    ///
+    /// Strategy:
+    /// 1. Check our own cache keychain (no prompt)
+    /// 2. If not cached, try external keychains (may prompt)
+    /// 3. Cache any found token in our own keychain
     #[instrument(skip(self))]
     pub fn load_from_keychain(&self) -> Option<String> {
-        // Try Copilot-specific keychain entry
-        if let Ok(entry) = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT) {
-            if let Ok(token) = entry.get_password() {
-                if !token.is_empty() {
-                    return Some(token);
+        use exactobar_fetch::host::keychain::{get_password_cached, invalidate_cache_entry};
+
+        // 1. Check our own cache first (no password prompt!)
+        if let Some(token) = get_password_cached(OUR_COPILOT_CACHE_SERVICE, "token") {
+            debug!(source = "our_cache", "Using cached Copilot token");
+            return Some(token);
+        }
+
+        // 2. Try external keychains (may prompt for password)
+        let external_token = self.load_from_external_keychain();
+
+        // 3. Cache any found token in our own keychain
+        if let Some(ref token) = external_token {
+            if let Ok(entry) = keyring::Entry::new(OUR_COPILOT_CACHE_SERVICE, "token") {
+                if entry.set_password(token).is_ok() {
+                    debug!("Cached Copilot token in our keychain");
+                    // Invalidate in-memory cache so it picks up the new value
+                    invalidate_cache_entry(OUR_COPILOT_CACHE_SERVICE, "token");
                 }
             }
         }
 
+        external_token
+    }
+
+    /// Load token directly from external keychains (may prompt).
+    fn load_from_external_keychain(&self) -> Option<String> {
+        use exactobar_fetch::host::keychain::get_password_cached;
+
+        // Try Copilot-specific keychain entry
+        if let Some(token) = get_password_cached(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT) {
+            debug!(
+                source = "copilot_keychain",
+                "Found token in Copilot keychain"
+            );
+            return Some(token);
+        }
+
         // Try GitHub CLI keychain entry
-        if let Ok(entry) = keyring::Entry::new(GH_CLI_KEYCHAIN_SERVICE, "") {
-            if let Ok(token) = entry.get_password() {
-                if !token.is_empty() {
-                    return Some(token);
-                }
-            }
+        if let Some(token) = get_password_cached(GH_CLI_KEYCHAIN_SERVICE, "") {
+            debug!(
+                source = "gh_cli_keychain",
+                "Found token in GitHub CLI keychain"
+            );
+            return Some(token);
         }
 
         None
@@ -265,12 +304,19 @@ impl CopilotTokenStore {
     /// Delete token from keychain.
     #[instrument(skip(self))]
     pub fn delete_from_keychain(&self) -> Result<(), CopilotError> {
+        // Delete from the external keychain
         let entry = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT)
             .map_err(|e| CopilotError::KeychainError(e.to_string()))?;
 
         entry
             .delete_credential()
             .map_err(|e| CopilotError::KeychainError(e.to_string()))?;
+
+        // Also delete from our cache
+        if let Ok(cache_entry) = keyring::Entry::new(OUR_COPILOT_CACHE_SERVICE, "token") {
+            let _ = cache_entry.delete_credential();
+        }
+        exactobar_fetch::host::keychain::invalidate_cache_entry(OUR_COPILOT_CACHE_SERVICE, "token");
 
         debug!("Token deleted from keychain");
         Ok(())
