@@ -1141,14 +1141,14 @@ impl SystemTray {
                     debug!(event = ?event, "Processing Linux tray event");
                     match event {
                         LinuxTrayEvent::Activate { x, y } => {
-                            debug!(x = x, y = y, "Tray icon activated");
+                            info!(x = x, y = y, "Tray icon activated at position");
                             let _ = cx.update_global::<SystemTray, _>(|tray, cx| {
-                                tray.toggle_menu(None, cx);
+                                tray.toggle_menu_at(None, Some((x, y)), cx);
                             });
                         }
                         LinuxTrayEvent::OpenMenu => {
                             let _ = cx.update_global::<SystemTray, _>(|tray, cx| {
-                                tray.toggle_menu(None, cx);
+                                tray.toggle_menu_at(None, None, cx);
                             });
                         }
                         LinuxTrayEvent::Refresh => {
@@ -1402,21 +1402,26 @@ impl SystemTray {
         // Linux only has one icon, so nothing else to do
     }
 
-    /// Toggles the tray menu.
+    /// Toggles the tray menu (legacy, no position).
     pub fn toggle_menu(&mut self, provider: Option<ProviderKind>, cx: &mut App) {
+        self.toggle_menu_at(provider, None, cx);
+    }
+
+    /// Toggles the tray menu with optional click position.
+    pub fn toggle_menu_at(&mut self, provider: Option<ProviderKind>, click_pos: Option<(i32, i32)>, cx: &mut App) {
         if self.menu_window.is_some() {
             self.close_menu(cx);
         } else {
-            self.open_menu(provider, cx);
+            self.open_menu_at(provider, click_pos, cx);
         }
     }
 
     /// Opens the tray menu as a GPUI popup window.
     ///
-    /// On Linux, we position the window at the top-right of the screen,
-    /// near where system tray icons typically appear.
-    fn open_menu(&mut self, provider: Option<ProviderKind>, cx: &mut App) {
-        info!(provider = ?provider, "Opening GPUI popup menu (Linux)...");
+    /// On Linux, we position the window near the click position (which is near the tray icon).
+    /// The menu appears below and to the left of the click point so it doesn't obscure the icon.
+    fn open_menu_at(&mut self, provider: Option<ProviderKind>, click_pos: Option<(i32, i32)>, cx: &mut App) {
+        info!(provider = ?provider, click_pos = ?click_pos, "Opening GPUI popup menu (Linux)...");
         self.close_menu(cx);
 
         let menu = TrayMenu::new(provider);
@@ -1424,18 +1429,25 @@ impl SystemTray {
         let menu_width = 340.0_f32;
         let menu_height = 600.0_f32;
 
-        // Get screen dimensions to position menu at top-right (near system tray)
-        let (origin_x, origin_y) = if let Some(display) = cx.primary_display() {
+        // Position menu near the click (tray icon location)
+        let (origin_x, origin_y) = if let Some((click_x, click_y)) = click_pos {
+            // Position menu below the click point, aligned to the right
+            // The click_x, click_y are screen coordinates from ksni
+            let x = (click_x as f32 - menu_width).max(10.0); // Left of click, but not off-screen
+            let y = (click_y as f32).max(0.0); // Below the panel
+            info!(click_x = click_x, click_y = click_y, menu_x = x, menu_y = y, "Positioning menu near tray icon");
+            (x, y)
+        } else if let Some(display) = cx.primary_display() {
+            // Fallback: top-right of screen
             let screen_bounds = display.bounds();
             let screen_width: f32 = screen_bounds.size.width.into();
-            // Position at top-right: 10px from right edge, 30px from top (below panel)
             let x = screen_width - menu_width - 10.0;
             let y = 30.0_f32;
-            info!(screen_width = screen_width, x = x, y = y, "Positioning menu at top-right");
+            info!(screen_width = screen_width, x = x, y = y, "Positioning menu at top-right (fallback)");
             (x, y)
         } else {
-            // Fallback if we can't get display info
-            warn!("Could not get primary display, using fallback position");
+            // Last resort fallback
+            warn!("Could not get click position or display info, using hardcoded fallback");
             (100.0_f32, 30.0_f32)
         };
 
