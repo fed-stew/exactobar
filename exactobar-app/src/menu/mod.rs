@@ -188,7 +188,7 @@ impl Render for MenuPanel {
             }
         };
 
-        div()
+        let root = div()
             .id("menu-panel")
             .w(px(340.)) // Slightly wider like Notification Center
             // TRUE LIQUID GLASS: NO background at all! Window blur does everything.
@@ -217,7 +217,13 @@ impl Render for MenuPanel {
                     .child(content),
             )
             // Action footer with WORKING buttons (fixed height)
-            .child(MenuFooter::new())
+            .child(MenuFooter::new());
+
+        // Apply opaque background on Linux (no blur support)
+        #[cfg(target_os = "linux")]
+        let root = root.bg(theme::window_background());
+
+        root
     }
 }
 

@@ -24,6 +24,12 @@ use std::collections::HashMap;
 use std::sync::mpsc::{self, Receiver, Sender};
 use tracing::{debug, info, warn};
 
+// Linux-specific imports
+#[cfg(target_os = "linux")]
+use ksni::Icon as KsniIcon;
+#[cfg(target_os = "linux")]
+use ksni::blocking::TrayMethods as KsniTrayMethods;
+
 use crate::icon::{IconAnimationState, IconRenderer, RenderMode, RenderedIcon};
 use crate::menu::TrayMenu;
 use crate::state::AppState;
@@ -135,34 +141,151 @@ fn create_delegate(sender: &Sender<StatusItemClickEvent>, provider: Option<Provi
 }
 
 // ============================================================================
+// Linux SNI (StatusNotifierItem) Implementation
+// ============================================================================
+
+/// Event sent when a Linux tray action is triggered.
+#[cfg(target_os = "linux")]
+#[derive(Debug, Clone)]
+enum LinuxTrayEvent {
+    /// Tray icon was clicked (left click).
+    Activate { x: i32, y: i32 },
+    /// "Open Menu" menu item was clicked.
+    OpenMenu,
+    /// "Refresh" menu item was clicked.
+    Refresh,
+    /// "Settings" menu item was clicked.
+    Settings,
+    /// "Quit" menu item was clicked.
+    Quit,
+}
+
+/// Linux tray struct implementing ksni::Tray trait.
+///
+/// This provides the StatusNotifierItem implementation for Linux desktop
+/// environments that support the SNI specification (KDE, GNOME with extensions, etc.).
+#[cfg(target_os = "linux")]
+#[derive(Debug, Clone)]
+struct LinuxTray {
+    /// Channel sender for communicating events back to GPUI.
+    event_sender: Sender<LinuxTrayEvent>,
+    /// The tray icon (ARGB format).
+    icon: KsniIcon,
+}
+
+#[cfg(target_os = "linux")]
+impl LinuxTray {
+    /// Creates a new Linux tray with the given event sender and icon.
+    fn new(event_sender: Sender<LinuxTrayEvent>, icon: KsniIcon) -> Self {
+        Self { event_sender, icon }
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl ksni::Tray for LinuxTray {
+    fn id(&self) -> String {
+        "exactobar".into()
+    }
+
+    fn title(&self) -> String {
+        "ExactoBar".into()
+    }
+
+    fn icon_pixmap(&self) -> Vec<KsniIcon> {
+        vec![self.icon.clone()]
+    }
+
+    fn activate(&mut self, x: i32, y: i32) {
+        let _ = self.event_sender.send(LinuxTrayEvent::Activate { x, y });
+    }
+
+    fn menu(&self) -> Vec<ksni::MenuItem<Self>> {
+        use ksni::menu::*;
+        vec![
+            StandardItem {
+                label: "Refresh".into(),
+                activate: Box::new(|tray: &mut Self| {
+                    let _ = tray.event_sender.send(LinuxTrayEvent::Refresh);
+                }),
+                ..Default::default()
+            }
+            .into(),
+            StandardItem {
+                label: "Settings".into(),
+                activate: Box::new(|tray: &mut Self| {
+                    let _ = tray.event_sender.send(LinuxTrayEvent::Settings);
+                }),
+                ..Default::default()
+            }
+            .into(),
+            MenuItem::Separator,
+            StandardItem {
+                label: "Quit".into(),
+                activate: Box::new(|tray: &mut Self| {
+                    let _ = tray.event_sender.send(LinuxTrayEvent::Quit);
+                }),
+                ..Default::default()
+            }
+            .into(),
+        ]
+    }
+}
+
+// ============================================================================
 // System Tray
 // ============================================================================
 
-/// Native macOS system tray manager.
+/// Native system tray manager (macOS NSStatusItem / Linux SNI).
 ///
-/// Creates real NSStatusItem objects in the macOS menu bar.
+/// On macOS: Creates real NSStatusItem objects in the macOS menu bar.
 /// Uses an Objective-C delegate to handle clicks and show GPUI popup windows.
+///
+/// On Linux: Uses the StatusNotifierItem (SNI) specification via ksni crate
+/// for desktop environments that support it (KDE, GNOME with extensions).
 pub struct SystemTray {
-    /// Native status items by provider.
+    // ========================================================================
+    // macOS-specific fields
+    // ========================================================================
+    /// Native status items by provider (macOS).
     #[cfg(target_os = "macos")]
     status_items: HashMap<ProviderKind, id>,
 
-    /// Merged status item (when merge mode is enabled).
+    /// Merged status item (when merge mode is enabled) (macOS).
     #[cfg(target_os = "macos")]
     merged_status_item: Option<id>,
 
-    /// Delegate objects for handling clicks (must be kept alive).
+    /// Delegate objects for handling clicks (must be kept alive) (macOS).
     #[cfg(target_os = "macos")]
     delegates: Vec<id>,
 
-    /// Channel sender for click events (boxed for stable address when struct is moved).
+    /// Channel sender for click events (macOS).
     /// IMPORTANT: Must be Box to maintain stable pointer address when SystemTray
     /// is moved into global storage. Delegates hold raw pointers to this.
+    #[cfg(target_os = "macos")]
     click_sender: Box<Sender<StatusItemClickEvent>>,
 
-    /// Channel receiver for click events.
+    /// Channel receiver for click events (macOS).
+    #[cfg(target_os = "macos")]
     click_receiver: Option<Receiver<StatusItemClickEvent>>,
 
+    // ========================================================================
+    // Linux-specific fields
+    // ========================================================================
+    /// Handle to the ksni tray service (Linux).
+    #[cfg(target_os = "linux")]
+    sni_handle: Option<ksni::blocking::Handle<LinuxTray>>,
+
+    /// Channel sender for Linux tray events.
+    #[cfg(target_os = "linux")]
+    linux_event_sender: Sender<LinuxTrayEvent>,
+
+    /// Channel receiver for Linux tray events.
+    #[cfg(target_os = "linux")]
+    linux_event_receiver: Option<Receiver<LinuxTrayEvent>>,
+
+    // ========================================================================
+    // Common fields (all platforms)
+    // ========================================================================
     /// Icon renderer.
     renderer: IconRenderer,
 
@@ -881,38 +1004,493 @@ impl Drop for SystemTray {
 }
 
 // ============================================================================
-// Non-macOS Stub Implementation
+// Linux SNI Implementation
 // ============================================================================
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "linux")]
 impl SystemTray {
-    pub fn new(_cx: &mut App) -> Self {
-        warn!("System tray is only supported on macOS");
-        let (click_sender, click_receiver) = mpsc::channel();
-        Self {
-            click_sender: Box::new(click_sender),
-            click_receiver: Some(click_receiver),
-            renderer: IconRenderer::new(),
-            merge_mode: false,
+    /// Creates a new system tray with Linux SNI (StatusNotifierItem) support.
+    ///
+    /// Sets up a ksni tray service that communicates with the desktop environment's
+    /// system tray implementation (KDE, GNOME with AppIndicator extension, etc.).
+    pub fn new(cx: &mut App) -> Self {
+        let state = cx.global::<AppState>();
+        let merge_mode = state.settings.read(cx).merge_icons();
+        let surprise_me_enabled = state.settings.read(cx).random_blink_enabled();
+        let providers = state.enabled_providers(cx);
+
+        // Use Colored mode for Linux (we'll convert RGBA to ARGB for ksni)
+        let renderer = IconRenderer::new().with_mode(RenderMode::Colored);
+
+        // Create channel for Linux tray events
+        let (linux_event_sender, linux_event_receiver) = mpsc::channel();
+
+        // Initialize animation states for all providers
+        let mut animation_states = HashMap::new();
+        for provider in &providers {
+            animation_states.insert(*provider, IconAnimationState::default());
+        }
+
+        let mut tray = Self {
+            sni_handle: None,
+            linux_event_sender,
+            linux_event_receiver: Some(linux_event_receiver),
+            renderer,
+            merge_mode,
             menu_window: None,
             loading_phase: 0.0,
-            animation_states: HashMap::new(),
-            surprise_me_enabled: false,
+            animation_states,
+            surprise_me_enabled,
             last_random_event: std::time::Instant::now(),
+        };
+
+        // Create the SNI tray
+        tray.create_sni_tray(cx);
+
+        info!(merge_mode = merge_mode, "Linux SNI system tray initialized");
+        tray
+    }
+
+    /// Creates the ksni tray service.
+    fn create_sni_tray(&mut self, cx: &mut App) {
+        let state = cx.global::<AppState>();
+        let providers = state.enabled_providers(cx);
+
+        // Get the first provider for the initial icon
+        let first_provider = providers.first().copied();
+        let icon = self.render_linux_icon(first_provider, cx);
+
+        // Create the Linux tray
+        let linux_tray = LinuxTray::new(self.linux_event_sender.clone(), icon);
+
+        // Spawn the tray service
+        match ksni::TrayService::new(linux_tray).spawn() {
+            Ok(handle) => {
+                self.sni_handle = Some(handle);
+                info!("Linux SNI tray service started");
+            }
+            Err(e) => {
+                warn!(error = ?e, "Failed to start Linux SNI tray service");
+            }
         }
     }
 
-    pub fn start_click_listener(&mut self, _cx: &mut App) {}
-    pub fn start_animation_timer(&mut self, _cx: &mut App) {}
-    pub fn update_icon(&mut self, _provider: ProviderKind, _cx: &mut App) {}
-    pub fn update_all(&mut self, _cx: &mut App) {}
-    pub fn set_merge_mode(&mut self, _merge: bool, _cx: &mut App) {}
-    pub fn add_provider(&mut self, _provider: ProviderKind, _cx: &mut App) {}
-    pub fn remove_provider(&mut self, _provider: ProviderKind) {}
-    pub fn toggle_menu(&mut self, _provider: Option<ProviderKind>, _cx: &mut App) {}
-    pub fn trigger_blink(&mut self, _provider: ProviderKind, _cx: &mut App) {}
-    pub fn set_surprise_me_enabled(&mut self, _enabled: bool) {}
-    pub fn get_icon_png(&self, _provider: ProviderKind, _cx: &App) -> Option<Vec<u8>> {
-        None
+    /// Renders an icon for Linux in ARGB format (as required by ksni).
+    fn render_linux_icon(&self, provider: Option<ProviderKind>, cx: &App) -> KsniIcon {
+        let state = cx.global::<AppState>();
+
+        // Get snapshot and status for rendering
+        let (snapshot, status_indicator) = if let Some(p) = provider {
+            let snapshot = state.get_snapshot(p, cx);
+            let status = state.get_status(p, cx);
+            let indicator = status.map(|s| s.indicator).unwrap_or(StatusIndicator::None);
+            (snapshot, indicator)
+        } else {
+            (None, StatusIndicator::None)
+        };
+
+        // Render the icon
+        let rendered = if let Some(p) = provider {
+            self.renderer
+                .render(p, snapshot.as_ref(), false, Some(status_indicator), None)
+        } else {
+            // Fallback: render a default icon
+            self.renderer.render(
+                ProviderKind::Codex,
+                None,
+                false,
+                Some(StatusIndicator::None),
+                None,
+            )
+        };
+
+        // Get raw RGBA pixels
+        let (width, height, mut pixels) = rendered.to_rgba_pixels();
+
+        // Convert RGBA to ARGB (Linux SNI expects ARGB in network byte order)
+        for pixel in pixels.chunks_exact_mut(4) {
+            // RGBA -> ARGB: [R, G, B, A] -> [A, R, G, B]
+            let [r, g, b, a] = [pixel[0], pixel[1], pixel[2], pixel[3]];
+            pixel[0] = a;
+            pixel[1] = r;
+            pixel[2] = g;
+            pixel[3] = b;
+        }
+
+        KsniIcon {
+            width: width as i32,
+            height: height as i32,
+            data: pixels,
+        }
+    }
+
+    /// Starts the event listener for Linux tray events.
+    ///
+    /// Spawns a background task that polls the event channel and
+    /// handles tray actions (clicks, menu items).
+    pub fn start_click_listener(&mut self, cx: &mut App) {
+        let Some(receiver) = self.linux_event_receiver.take() else {
+            warn!("Linux event listener already started");
+            return;
+        };
+
+        cx.spawn(async move |cx| {
+            loop {
+                // Check for events (non-blocking)
+                while let Ok(event) = receiver.try_recv() {
+                    debug!(event = ?event, "Processing Linux tray event");
+                    match event {
+                        LinuxTrayEvent::Activate { x, y } => {
+                            debug!(x = x, y = y, "Tray icon activated");
+                            let _ = cx.update_global::<SystemTray, _>(|tray, cx| {
+                                tray.toggle_menu(None, cx);
+                            });
+                        }
+                        LinuxTrayEvent::OpenMenu => {
+                            let _ = cx.update_global::<SystemTray, _>(|tray, cx| {
+                                tray.toggle_menu(None, cx);
+                            });
+                        }
+                        LinuxTrayEvent::Refresh => {
+                            info!("Refresh requested from tray menu");
+                            let _ = cx.update_global::<AppState, _>(|state, cx| {
+                                state.refresh_all(cx);
+                            });
+                        }
+                        LinuxTrayEvent::Settings => {
+                            info!("Settings requested from tray menu");
+                            let _ = cx.update(|_, cx| {
+                                crate::actions::open_settings(cx);
+                            });
+                        }
+                        LinuxTrayEvent::Quit => {
+                            info!("Quit requested from tray menu");
+                            let _ = cx.update(|_, cx| {
+                                cx.quit();
+                            });
+                        }
+                    }
+                }
+
+                // Sleep briefly to avoid busy-waiting
+                smol::Timer::after(std::time::Duration::from_millis(16)).await;
+            }
+        })
+        .detach();
+
+        info!("Linux tray event listener started");
+    }
+
+    /// Updates the icon for a specific provider.
+    pub fn update_icon(&mut self, provider: ProviderKind, cx: &mut App) {
+        let state = cx.global::<AppState>();
+        let snapshot = state.get_snapshot(provider, cx);
+        let is_refreshing = state.is_provider_refreshing(provider, cx);
+        let has_error = state.get_error(provider, cx).is_some();
+        let status = state.get_status(provider, cx);
+
+        // Check if snapshot is stale (older than 10 minutes)
+        let stale = snapshot.as_ref().is_some_and(|s| {
+            let threshold = chrono::Duration::minutes(10);
+            chrono::Utc::now() - s.updated_at > threshold
+        });
+
+        // Get animation state for this provider
+        let animation = self.animation_states.get(&provider);
+
+        let rendered = if is_refreshing {
+            self.loading_phase += 0.1;
+            self.renderer.render_loading(provider, self.loading_phase)
+        } else if has_error {
+            self.renderer.render_error(provider)
+        } else {
+            let status_indicator = status.map(|s| s.indicator).unwrap_or(StatusIndicator::None);
+
+            self.renderer.render(
+                provider,
+                snapshot.as_ref(),
+                stale,
+                Some(status_indicator),
+                animation,
+            )
+        };
+
+        // Convert to ARGB for ksni
+        let (width, height, mut pixels) = rendered.to_rgba_pixels();
+        for pixel in pixels.chunks_exact_mut(4) {
+            let [r, g, b, a] = [pixel[0], pixel[1], pixel[2], pixel[3]];
+            pixel[0] = a;
+            pixel[1] = r;
+            pixel[2] = g;
+            pixel[3] = b;
+        }
+
+        let icon = KsniIcon {
+            width: width as i32,
+            height: height as i32,
+            data: pixels,
+        };
+
+        // Update the tray icon
+        if let Some(handle) = &self.sni_handle {
+            handle.update(|tray| {
+                tray.icon = icon;
+            });
+        }
+
+        debug!(provider = ?provider, stale = stale, "Icon updated (Linux)");
+    }
+
+    /// Updates all icons based on current state.
+    pub fn update_all(&mut self, cx: &mut App) {
+        let state = cx.global::<AppState>();
+        let providers = state.enabled_providers(cx);
+
+        // On Linux, we only have one icon, so just update with the first provider
+        if let Some(&provider) = providers.first() {
+            self.update_icon(provider, cx);
+        }
+    }
+
+    // ========================================================================
+    // Animation Methods
+    // ========================================================================
+
+    /// Triggers a blink animation for a provider.
+    pub fn trigger_blink(&mut self, provider: ProviderKind, cx: &mut App) {
+        if let Some(state) = self.animation_states.get_mut(&provider) {
+            state.blink_phase = 1.0;
+        }
+        self.update_icon(provider, cx);
+    }
+
+    /// Updates animation states (called each frame by the animation timer).
+    fn tick_animations(&mut self, delta_seconds: f32, cx: &mut App) {
+        let mut needs_update = Vec::new();
+
+        for (provider, state) in &mut self.animation_states {
+            let mut changed = false;
+
+            if state.blink_phase > 0.0 {
+                state.blink_phase = (state.blink_phase - delta_seconds * 3.0).max(0.0);
+                changed = true;
+            }
+
+            if state.wiggle_offset.abs() > 0.01 {
+                state.wiggle_offset *= 0.9_f32.powf(delta_seconds * 60.0);
+                changed = true;
+            } else {
+                state.wiggle_offset = 0.0;
+            }
+
+            if state.tilt_degrees.abs() > 0.1 {
+                state.tilt_degrees *= 0.9_f32.powf(delta_seconds * 60.0);
+                changed = true;
+            } else {
+                state.tilt_degrees = 0.0;
+            }
+
+            if changed {
+                needs_update.push(*provider);
+            }
+        }
+
+        for provider in needs_update {
+            self.update_icon(provider, cx);
+        }
+    }
+
+    /// Maybe trigger a random animation if "surprise me" is enabled.
+    fn maybe_random_animation(&mut self, cx: &mut App) {
+        if !self.surprise_me_enabled {
+            return;
+        }
+
+        if self.last_random_event.elapsed() < std::time::Duration::from_secs(30) {
+            return;
+        }
+
+        if rand::random::<f32>() >= 0.3 {
+            self.last_random_event = std::time::Instant::now();
+            return;
+        }
+
+        let providers: Vec<_> = self.animation_states.keys().copied().collect();
+        if providers.is_empty() {
+            self.last_random_event = std::time::Instant::now();
+            return;
+        }
+
+        let provider = providers[rand::random::<usize>() % providers.len()];
+
+        match rand::random::<u8>() % 3 {
+            0 => {
+                debug!(provider = ?provider, "Random blink triggered");
+                self.trigger_blink(provider, cx);
+            }
+            1 => {
+                if let Some(state) = self.animation_states.get_mut(&provider) {
+                    state.wiggle_offset = (rand::random::<f32>() - 0.5) * 4.0;
+                    debug!(provider = ?provider, wiggle = state.wiggle_offset, "Random wiggle triggered");
+                }
+            }
+            _ => {
+                if let Some(state) = self.animation_states.get_mut(&provider) {
+                    state.tilt_degrees = (rand::random::<f32>() - 0.5) * 10.0;
+                    debug!(provider = ?provider, tilt = state.tilt_degrees, "Random tilt triggered");
+                }
+            }
+        }
+
+        self.last_random_event = std::time::Instant::now();
+    }
+
+    /// Starts the animation tick timer.
+    pub fn start_animation_timer(&mut self, cx: &mut App) {
+        cx.spawn(async move |mut cx| {
+            let mut last_tick = std::time::Instant::now();
+
+            loop {
+                smol::Timer::after(std::time::Duration::from_millis(33)).await;
+
+                let now = std::time::Instant::now();
+                let delta = (now - last_tick).as_secs_f32();
+                last_tick = now;
+
+                let _ = cx.update_global::<SystemTray, _>(|tray, cx| {
+                    tray.tick_animations(delta, cx);
+                    tray.maybe_random_animation(cx);
+                });
+            }
+        })
+        .detach();
+
+        info!("Animation timer started (~30fps)");
+    }
+
+    /// Updates the "surprise me" (random animation) setting.
+    pub fn set_surprise_me_enabled(&mut self, enabled: bool) {
+        self.surprise_me_enabled = enabled;
+        info!(surprise_me = enabled, "Surprise me mode changed");
+    }
+
+    /// Ensures a provider has an animation state entry.
+    fn ensure_animation_state(&mut self, provider: ProviderKind) {
+        self.animation_states.entry(provider).or_default();
+    }
+
+    // ========================================================================
+    // Mode Switching
+    // ========================================================================
+
+    /// Toggles merge mode (no-op on Linux since we always have one icon).
+    pub fn set_merge_mode(&mut self, merge: bool, _cx: &mut App) {
+        self.merge_mode = merge;
+        // Linux only supports one icon anyway, so this is a no-op
+        debug!(merge_mode = merge, "Merge mode changed (Linux - no-op)");
+    }
+
+    /// Adds a provider to the tray.
+    pub fn add_provider(&mut self, provider: ProviderKind, _cx: &mut App) {
+        self.ensure_animation_state(provider);
+        // Linux only has one icon, so we don't create additional items
+    }
+
+    /// Removes a provider from the tray.
+    pub fn remove_provider(&mut self, provider: ProviderKind) {
+        self.animation_states.remove(&provider);
+        // Linux only has one icon, so nothing else to do
+    }
+
+    /// Toggles the tray menu.
+    pub fn toggle_menu(&mut self, provider: Option<ProviderKind>, cx: &mut App) {
+        if self.menu_window.is_some() {
+            self.close_menu(cx);
+        } else {
+            self.open_menu(provider, cx);
+        }
+    }
+
+    /// Opens the tray menu as a GPUI popup window.
+    ///
+    /// On Linux, we position the window near the mouse cursor since we
+    /// don't have reliable access to the tray icon's position.
+    fn open_menu(&mut self, provider: Option<ProviderKind>, cx: &mut App) {
+        info!(provider = ?provider, "Opening GPUI popup menu (Linux)...");
+        self.close_menu(cx);
+
+        let menu = TrayMenu::new(provider);
+
+        let menu_width = 340.0_f32;
+        let menu_height = 600.0_f32;
+
+        // On Linux, position near top-right of screen as a fallback
+        // (getting mouse position would require additional dependencies)
+        let origin_x = 100.0_f32;
+        let origin_y = 30.0_f32;
+
+        let bounds = Bounds::new(
+            point(px(origin_x), px(origin_y)),
+            size(px(menu_width), px(menu_height)),
+        );
+
+        let window_options = WindowOptions {
+            titlebar: None,
+            window_bounds: Some(WindowBounds::Windowed(bounds)),
+            focus: true,
+            show: true,
+            kind: WindowKind::PopUp,
+            is_movable: false,
+            display_id: None,
+            // Linux doesn't support blur, so we use opaque background
+            window_background: WindowBackgroundAppearance::Opaque,
+            app_id: Some("exactobar".into()),
+            window_min_size: None,
+            window_decorations: Some(WindowDecorations::Client),
+            is_minimizable: false,
+            is_resizable: false,
+            tabbing_identifier: None,
+        };
+
+        match cx.open_window(window_options, |_window, cx| cx.new(|_| menu)) {
+            Ok(handle) => {
+                self.menu_window = Some(handle.into());
+                info!(
+                    x = origin_x,
+                    y = origin_y,
+                    "✅ Menu opened at position (Linux)"
+                );
+            }
+            Err(e) => {
+                warn!(error = ?e, "❌ Failed to open menu");
+            }
+        }
+    }
+
+    /// Closes the tray menu.
+    fn close_menu(&mut self, cx: &mut App) {
+        if let Some(handle) = self.menu_window.take() {
+            let _ = cx.update_window(handle, |_, window, _| {
+                window.remove_window();
+            });
+        }
+    }
+
+    /// Gets the icon PNG for a provider.
+    pub fn get_icon_png(&self, provider: ProviderKind, cx: &App) -> Option<Vec<u8>> {
+        let state = cx.global::<AppState>();
+        let snapshot = state.get_snapshot(provider, cx);
+        let rendered = self
+            .renderer
+            .render(provider, snapshot.as_ref(), false, None, None);
+        Some(rendered.to_png())
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl Drop for SystemTray {
+    fn drop(&mut self) {
+        // The ksni handle will be dropped automatically, which stops the service
+        info!("Linux system tray cleaned up");
     }
 }

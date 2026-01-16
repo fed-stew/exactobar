@@ -34,4 +34,12 @@ impl RenderedIcon {
             .flat_map(|rgba| [rgba[2], rgba[1], rgba[0], rgba[3]])
             .collect()
     }
+
+    /// Gets raw RGBA pixels with dimensions.
+    ///
+    /// Returns (width, height, pixels) tuple for use with platform APIs
+    /// that need direct pixel access (like Linux SNI).
+    pub fn to_rgba_pixels(&self) -> (u32, u32, Vec<u8>) {
+        (self.width, self.height, self.data.clone())
+    }
 }

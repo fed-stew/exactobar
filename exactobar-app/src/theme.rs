@@ -94,6 +94,11 @@ pub fn card_background() -> Hsla {
     hsla(0.0, 0.0, 1.0, 0.08) // Very subtle white card bg
 }
 
+/// Opaque window background for platforms without blur support (Linux).
+pub fn window_background() -> Hsla {
+    hsla(0.0, 0.0, 0.12, 0.98)
+}
+
 /// Liquid glass card background - even MORE subtle for true glass effect.
 pub fn liquid_card_background() -> Hsla {
     hsla(0.0, 0.0, 1.0, 0.05) // 5% white - barely visible
