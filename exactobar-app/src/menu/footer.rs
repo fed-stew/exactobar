@@ -36,8 +36,6 @@ impl IntoElement for MenuFooter {
             .justify_between()
             // Refresh button - ACTUALLY REFRESHES
             .child(FooterActionButton::refresh())
-            // Check for updates button
-            .child(FooterActionButton::check_updates())
             // Settings button - OPENS SETTINGS
             .child(FooterActionButton::settings())
             // Quit button - ACTUALLY QUITS
@@ -59,7 +57,6 @@ impl Default for MenuFooter {
 #[derive(Clone, Copy, Debug)]
 enum FooterAction {
     Refresh,
-    CheckUpdates,
     Settings,
     Quit,
 }
@@ -85,14 +82,6 @@ impl FooterActionButton {
             action: FooterAction::Settings,
             label: "Settings...",
             shortcut: "⌘,",
-        }
-    }
-
-    fn check_updates() -> Self {
-        Self {
-            action: FooterAction::CheckUpdates,
-            label: "Updates",
-            shortcut: "",
         }
     }
 
@@ -135,34 +124,6 @@ impl IntoElement for FooterActionButton {
                             state.refresh_all(cx);
                         });
                     }
-                    FooterAction::CheckUpdates => {
-                        tracing::trace!("Check updates button clicked");
-                        let task = cx.spawn(async move |mut cx| {
-                            let result = crate::updater::check_for_updates().await;
-                            let _ = cx.update(|cx| {
-                                match &result {
-                                    crate::updater::UpdateCheckResult::UpdateAvailable { .. } => {
-                                        windows::show_update_dialog(&result, cx);
-                                    }
-                                    crate::updater::UpdateCheckResult::UpToDate => {
-                                        info!("Already up to date!");
-                                        // Show a notification that we're up to date
-                                        #[cfg(target_os = "macos")]
-                                        {
-                                            use std::process::Command;
-                                            let _ = Command::new("osascript")
-                                                .args(["-e", "display notification \"You're running the latest version!\" with title \"ExactoBar\""])
-                                                .spawn();
-                                        }
-                                    }
-                                    crate::updater::UpdateCheckResult::Error(e) => {
-                                        tracing::warn!(error = e.as_str(), "Update check failed");
-                                    }
-                                }
-                            });
-                        });
-                        task.detach();
-                    }
                     FooterAction::Settings => {
                         tracing::trace!("Settings button clicked, opening settings window");
                         let task = cx.spawn(async move |mut cx| {
@@ -187,11 +148,6 @@ impl IntoElement for FooterActionButton {
                     .text_color(theme::text_primary())
                     .child(label),
             )
-            .child(
-                div()
-                    .text_xs()
-                    .text_color(theme::muted())
-                    .child(shortcut),
-            )
+            .child(div().text_xs().text_color(theme::muted()).child(shortcut))
     }
 }

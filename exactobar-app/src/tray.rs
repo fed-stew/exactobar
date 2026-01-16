@@ -725,7 +725,7 @@ impl SystemTray {
         let menu = TrayMenu::new(provider);
 
         let menu_width = 340.0_f32; // Match MenuPanel width
-        let menu_height = 450.0_f32;
+        let menu_height = 600.0_f32; // Match max_h in MenuPanel
 
         // Get screen dimensions for coordinate conversion (macOS -> GPUI)
         let (screen_width, screen_height) = unsafe {
