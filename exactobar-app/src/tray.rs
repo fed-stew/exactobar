@@ -1,4 +1,5 @@
 //! Native macOS system tray implementation.
+#![cfg_attr(not(target_os = "macos"), allow(dead_code))]
 //!
 //! Handles the menu bar icon(s) with dynamic usage meters using native NSStatusItem APIs.
 //! Uses an Objective-C delegate to handle status item clicks and show GPUI popup windows.
@@ -17,16 +18,33 @@ use objc::runtime::{Class, Object, Sel};
 use objc::{class, msg_send, sel, sel_impl};
 #[cfg(target_os = "macos")]
 use std::sync::Once;
+#[cfg(target_os = "linux")]
+use ksni::blocking::TrayMethods as KsniTrayMethods;
+#[cfg(target_os = "linux")]
+use ksni::Icon as KsniIcon;
 
-use exactobar_core::{ProviderKind, StatusIndicator};
+use exactobar_core::ProviderKind;
+#[cfg(target_os = "macos")]
+use exactobar_core::StatusIndicator;
 use gpui::*;
+#[cfg(target_os = "macos")]
 use std::collections::HashMap;
 use std::sync::mpsc::{self, Receiver, Sender};
-use tracing::{debug, info, warn};
+#[cfg(target_os = "macos")]
+use tracing::debug;
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+use tracing::info;
+use tracing::warn;
 
-use crate::icon::{IconRenderer, RenderMode, RenderedIcon};
+use crate::icon::IconRenderer;
+#[cfg(target_os = "macos")]
+use crate::icon::{RenderMode, RenderedIcon};
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 use crate::menu::TrayMenu;
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 use crate::state::AppState;
+#[cfg(target_os = "linux")]
+use crate::windows;
 
 // ============================================================================
 // Objective-C Delegate for Status Item Clicks
@@ -114,6 +132,262 @@ struct StatusItemClickEvent {
     provider: Option<ProviderKind>,
 }
 
+#[cfg(target_os = "linux")]
+#[derive(Debug, Clone)]
+enum LinuxTrayEvent {
+    Activate { x: i32, y: i32 },
+    OpenMenu,
+    Refresh,
+    Settings,
+    Quit,
+}
+
+#[cfg(target_os = "linux")]
+#[derive(Debug, Clone)]
+struct LinuxTray {
+    event_sender: Sender<LinuxTrayEvent>,
+    icon: KsniIcon,
+}
+
+#[cfg(target_os = "linux")]
+impl LinuxTray {
+    fn new(event_sender: Sender<LinuxTrayEvent>, icon: KsniIcon) -> Self {
+        Self { event_sender, icon }
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl ksni::Tray for LinuxTray {
+    fn id(&self) -> String {
+        "exactobar".into()
+    }
+
+    fn title(&self) -> String {
+        "ExactoBar".into()
+    }
+
+    fn icon_pixmap(&self) -> Vec<KsniIcon> {
+        vec![self.icon.clone()]
+    }
+
+    fn activate(&mut self, x: i32, y: i32) {
+        let _ = self.event_sender.send(LinuxTrayEvent::Activate { x, y });
+    }
+
+    fn secondary_activate(&mut self, x: i32, y: i32) {
+        let _ = self.event_sender.send(LinuxTrayEvent::Activate { x, y });
+    }
+
+    fn menu(&self) -> Vec<ksni::MenuItem<Self>> {
+        use ksni::menu::{MenuItem, StandardItem};
+
+        vec![
+            StandardItem {
+                label: "Open Menu".into(),
+                activate: Box::new(|this: &mut LinuxTray| {
+                    let _ = this.event_sender.send(LinuxTrayEvent::OpenMenu);
+                }),
+                ..Default::default()
+            }
+            .into(),
+            StandardItem {
+                label: "Refresh".into(),
+                activate: Box::new(|this: &mut LinuxTray| {
+                    let _ = this.event_sender.send(LinuxTrayEvent::Refresh);
+                }),
+                ..Default::default()
+            }
+            .into(),
+            MenuItem::Separator,
+            StandardItem {
+                label: "Settings".into(),
+                activate: Box::new(|this: &mut LinuxTray| {
+                    let _ = this.event_sender.send(LinuxTrayEvent::Settings);
+                }),
+                ..Default::default()
+            }
+            .into(),
+            MenuItem::Separator,
+            StandardItem {
+                label: "Quit".into(),
+                activate: Box::new(|this: &mut LinuxTray| {
+                    let _ = this.event_sender.send(LinuxTrayEvent::Quit);
+                }),
+                ..Default::default()
+            }
+            .into(),
+        ]
+    }
+}
+
+// ============================================================================
+// Linux StatusNotifierItem Implementation
+// ============================================================================
+
+#[cfg(target_os = "linux")]
+impl SystemTray {
+    pub fn new(cx: &mut App) -> Self {
+        let state = cx.global::<AppState>();
+        let providers = state.enabled_providers(cx);
+        let provider = providers.first().copied().unwrap_or(ProviderKind::Codex);
+        let renderer = IconRenderer::new();
+        let icon = render_linux_icon(provider, cx, &renderer);
+
+        let (click_sender, click_receiver) = mpsc::channel();
+        let tray = LinuxTray::new(click_sender.clone(), icon);
+        let handle = tray.assume_sni_available(true).spawn().ok();
+
+        if handle.is_none() {
+            warn!("Failed to initialize Linux system tray (StatusNotifierItem)");
+        }
+
+        Self {
+            click_sender: Box::new(click_sender),
+            click_receiver: Some(click_receiver),
+            renderer,
+            merge_mode: false,
+            menu_window: None,
+            loading_phase: 0.0,
+            sni_handle: handle,
+            current_provider: Some(provider),
+        }
+    }
+
+    pub fn start_click_listener(&mut self, cx: &mut App) {
+        let Some(receiver) = self.click_receiver.take() else {
+            warn!("Click listener already started");
+            return;
+        };
+
+        cx.spawn(async move |cx| {
+            loop {
+                while let Ok(event) = receiver.try_recv() {
+                    let _ = cx.update_global::<SystemTray, _>(|tray, cx| {
+                        tray.handle_linux_event(event, cx);
+                    });
+                }
+
+                smol::Timer::after(std::time::Duration::from_millis(16)).await;
+            }
+        })
+        .detach();
+
+        info!("Linux tray click listener started");
+    }
+
+    pub fn update_icon(&mut self, provider: ProviderKind, cx: &mut App) {
+        let Some(handle) = self.sni_handle.as_ref() else {
+            return;
+        };
+
+        let icon = render_linux_icon(provider, cx, &self.renderer);
+        let _ = handle.update(|tray| {
+            tray.icon = icon;
+        });
+        self.current_provider = Some(provider);
+    }
+
+    pub fn update_all(&mut self, cx: &mut App) {
+        if let Some(provider) = self.current_provider {
+            self.update_icon(provider, cx);
+        }
+    }
+
+    pub fn set_merge_mode(&mut self, _merge: bool, _cx: &mut App) {}
+    pub fn add_provider(&mut self, _provider: ProviderKind, _cx: &mut App) {}
+    pub fn remove_provider(&mut self, _provider: ProviderKind) {}
+
+    pub fn toggle_menu(&mut self, _provider: Option<ProviderKind>, cx: &mut App) {
+        self.open_main_window(cx);
+    }
+
+    pub fn get_icon_png(&self, provider: ProviderKind, cx: &App) -> Option<Vec<u8>> {
+        let state = cx.global::<AppState>();
+        let snapshot = state.get_snapshot(provider, cx);
+        let rendered = self.renderer.render(provider, snapshot.as_ref(), false, None);
+        Some(rendered.to_png())
+    }
+
+    fn handle_linux_event(&mut self, event: LinuxTrayEvent, cx: &mut App) {
+        info!(event = ?event, "Linux tray event");
+        match event {
+            LinuxTrayEvent::Activate { .. } => self.open_main_window(cx),
+            LinuxTrayEvent::OpenMenu => self.open_main_window(cx),
+            LinuxTrayEvent::Refresh => {
+                let _ = cx.update_global::<AppState, _>(|state, cx| {
+                    state.refresh_all(cx);
+                });
+            }
+            LinuxTrayEvent::Settings => windows::open_settings(cx),
+            LinuxTrayEvent::Quit => {
+                warn!("Ignoring tray quit on Linux to prevent unexpected exits");
+            }
+        }
+    }
+
+    fn open_main_window(&mut self, cx: &mut App) {
+        if let Some(handle) = self.menu_window {
+            let _ = cx.update_window(handle, |_, window, _| {
+                window.activate_window();
+            });
+            return;
+        }
+
+        cx.activate(true);
+
+        let menu = TrayMenu::new(None);
+        let bounds = Bounds::centered(None, size(px(420.0), px(560.0)), cx);
+
+        let window_options = WindowOptions {
+            titlebar: Some(TitlebarOptions {
+                title: Some("ExactoBar".into()),
+                appears_transparent: false,
+                traffic_light_position: None,
+            }),
+            window_bounds: Some(WindowBounds::Windowed(bounds)),
+            focus: true,
+            show: true,
+            kind: WindowKind::Normal,
+            is_movable: true,
+            display_id: None,
+            window_background: WindowBackgroundAppearance::Opaque,
+            app_id: None,
+            window_min_size: Some(size(px(360.0), px(480.0))),
+            window_decorations: None,
+            is_minimizable: true,
+            is_resizable: true,
+            tabbing_identifier: None,
+        };
+
+        match cx.open_window(window_options, |_window, cx| cx.new(|_| menu)) {
+            Ok(handle) => {
+                self.menu_window = Some(handle.into());
+            }
+            Err(e) => {
+                warn!(error = ?e, "Failed to open ExactoBar main window");
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn render_linux_icon(provider: ProviderKind, cx: &App, renderer: &IconRenderer) -> KsniIcon {
+    let state = cx.global::<AppState>();
+    let snapshot = state.get_snapshot(provider, cx);
+    let rendered = renderer.render(provider, snapshot.as_ref(), false, None);
+    let mut data = rendered.data;
+
+    for pixel in data.chunks_exact_mut(4) {
+        pixel.rotate_right(1);
+    }
+
+    KsniIcon {
+        width: rendered.width as i32,
+        height: rendered.height as i32,
+        data,
+    }
+}
+
 /// Creates a delegate instance configured to send click events to the given channel.
 #[cfg(target_os = "macos")]
 fn create_delegate(sender: &Sender<StatusItemClickEvent>, provider: Option<ProviderKind>) -> id {
@@ -157,13 +431,31 @@ pub struct SystemTray {
     #[cfg(target_os = "macos")]
     delegates: Vec<id>,
 
+    /// StatusNotifierItem handle for Linux tray.
+    #[cfg(target_os = "linux")]
+    sni_handle: Option<ksni::blocking::Handle<LinuxTray>>,
+
+    /// Current provider used for tray icon (Linux only).
+    #[cfg(target_os = "linux")]
+    current_provider: Option<ProviderKind>,
+
     /// Channel sender for click events (boxed for stable address when struct is moved).
     /// IMPORTANT: Must be Box to maintain stable pointer address when SystemTray
     /// is moved into global storage. Delegates hold raw pointers to this.
+    #[cfg(any(target_os = "macos", not(any(target_os = "macos", target_os = "linux"))))]
     click_sender: Box<Sender<StatusItemClickEvent>>,
 
+    /// Channel sender for Linux tray events.
+    #[cfg(target_os = "linux")]
+    click_sender: Box<Sender<LinuxTrayEvent>>,
+
     /// Channel receiver for click events.
+    #[cfg(any(target_os = "macos", not(any(target_os = "macos", target_os = "linux"))))]
     click_receiver: Option<Receiver<StatusItemClickEvent>>,
+
+    /// Channel receiver for Linux tray events.
+    #[cfg(target_os = "linux")]
+    click_receiver: Option<Receiver<LinuxTrayEvent>>,
 
     /// Icon renderer.
     renderer: IconRenderer,
@@ -682,13 +974,13 @@ impl Drop for SystemTray {
 // Non-macOS Stub Implementation
 // ============================================================================
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
 impl SystemTray {
     pub fn new(_cx: &mut App) -> Self {
         warn!("System tray is only supported on macOS");
         let (click_sender, click_receiver) = mpsc::channel();
         Self {
-            click_sender,
+            click_sender: Box::new(click_sender),
             click_receiver: Some(click_receiver),
             renderer: IconRenderer::new(),
             merge_mode: false,
