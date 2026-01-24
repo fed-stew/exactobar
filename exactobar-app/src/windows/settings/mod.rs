@@ -31,6 +31,7 @@ use crate::state::AppState;
 /// The main settings window.
 pub struct SettingsWindow {
     active_pane: SettingsPane,
+    settings_subscription: Option<gpui::Subscription>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -47,6 +48,7 @@ impl SettingsWindow {
         println!("🎯 [SW-1] SettingsWindow::new() called!");
         let result = Self {
             active_pane: SettingsPane::default(),
+            settings_subscription: None,
         };
         println!("🎯 [SW-2] SettingsWindow::new() returning!");
         result
@@ -66,15 +68,31 @@ impl Render for SettingsWindow {
             self.active_pane
         );
 
-        // Detect system appearance and select appropriate theme
-        let is_dark = matches!(
-            window.appearance(),
-            WindowAppearance::Dark | WindowAppearance::VibrantDark
-        );
-        let theme = if is_dark {
-            SettingsTheme::dark()
-        } else {
-            SettingsTheme::light()
+        if self.settings_subscription.is_none() {
+            let settings = cx.global::<AppState>().settings.clone();
+            self.settings_subscription = Some(cx.observe(&settings, |_this, _model, cx| {
+                cx.notify();
+            }));
+        }
+
+        // Get theme mode from settings
+        let theme_mode = cx.global::<AppState>().settings.read(cx).theme_mode();
+
+        // Determine theme based on user's preference
+        let theme = match theme_mode {
+            exactobar_store::ThemeMode::Dark => SettingsTheme::dark(),
+            exactobar_store::ThemeMode::Light => SettingsTheme::light(),
+            exactobar_store::ThemeMode::System => {
+                let is_dark = matches!(
+                    window.appearance(),
+                    WindowAppearance::Dark | WindowAppearance::VibrantDark
+                );
+                if is_dark {
+                    SettingsTheme::dark()
+                } else {
+                    SettingsTheme::light()
+                }
+            }
         };
 
         let active = self.active_pane;
