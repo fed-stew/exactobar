@@ -51,7 +51,7 @@ pub use persistence::{
 };
 pub use settings_store::{
     CookieSource, DataSourceMode, LogLevel, ProviderSettings, RefreshCadence, Settings,
-    SettingsStore,
+    SettingsStore, ThemeMode,
 };
 pub use usage_store::{CostUsageSnapshot, DailyCost, UsageStore};
 #[cfg(test)]
