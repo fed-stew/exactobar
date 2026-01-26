@@ -133,7 +133,7 @@ impl Default for Settings {
             selected_provider: None,
             debug_mode: false,
             log_level: LogLevel::default(),
-            theme_mode: ThemeMode::default(),
+            theme_mode: ThemeMode::Dark,
             provider_settings: HashMap::new(),
 
             // Display settings - sensible defaults
