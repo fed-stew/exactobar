@@ -66,12 +66,12 @@ pub fn set_current_theme_mode(mode: ThemeMode, appearance: WindowAppearance) {
 
 /// Surface/background color for menu panels (dark mode).
 pub fn surface_background_dark() -> Hsla {
-    hsla(0.0, 0.0, 0.0, 0.08) // Dark surface with slight opacity
+    hsla(0.0, 0.0, 0.12, 0.98) // Opaque dark surface to avoid over-blur
 }
 
 /// Liquid glass panel tint (dark mode).
 pub fn liquid_glass_tint_dark() -> Hsla {
-    hsla(0.0, 0.0, 0.05, 0.75) // Subtle dark tint
+    hsla(0.0, 0.0, 0.12, 0.9) // Subtle dark tint with higher opacity
 }
 
 /// Primary text color (dark mode).
@@ -111,7 +111,7 @@ pub fn track_dark() -> Hsla {
 
 /// Surface color for buttons/controls (dark mode).
 pub fn surface_dark() -> Hsla {
-    hsla(0.0, 0.0, 0.15, 0.5) // Semi-transparent dark
+    hsla(0.0, 0.0, 0.18, 0.9) // Dark surface with higher opacity
 }
 
 // ============================================================================
@@ -289,7 +289,7 @@ pub fn track() -> Hsla {
 /// Card background - for notification-style cards in dark mode.
 pub fn card_background() -> Hsla {
     if current_dark_mode() {
-        hsla(0.0, 0.0, 1.0, 0.08)
+        hsla(0.0, 0.0, 0.18, 0.92)
     } else {
         hsla(0.0, 0.0, 1.0, 0.9)
     }
@@ -303,7 +303,7 @@ pub fn window_background() -> Hsla {
 /// Liquid glass card background - even MORE subtle for true glass effect.
 pub fn liquid_card_background() -> Hsla {
     if current_dark_mode() {
-        hsla(0.0, 0.0, 1.0, 0.05)
+        hsla(0.0, 0.0, 0.18, 0.9)
     } else {
         hsla(0.0, 0.0, 1.0, 0.95)
     }
