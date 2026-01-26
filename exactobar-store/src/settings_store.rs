@@ -50,6 +50,9 @@ pub struct Settings {
     /// Log level.
     pub log_level: LogLevel,
 
+    /// Theme mode preference.
+    pub theme_mode: ThemeMode,
+
     /// Per-provider settings.
     pub provider_settings: HashMap<ProviderKind, ProviderSettings>,
 
@@ -130,6 +133,7 @@ impl Default for Settings {
             selected_provider: None,
             debug_mode: false,
             log_level: LogLevel::default(),
+            theme_mode: ThemeMode::Dark,
             provider_settings: HashMap::new(),
 
             // Display settings - sensible defaults
@@ -237,6 +241,29 @@ impl std::fmt::Display for LogLevel {
             LogLevel::Info => write!(f, "info"),
             LogLevel::Debug => write!(f, "debug"),
             LogLevel::Trace => write!(f, "trace"),
+        }
+    }
+}
+
+/// Theme mode preference.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ThemeMode {
+    /// Always use dark theme (recommended for liquid glass effect).
+    #[default]
+    Dark,
+    /// Always use light theme.
+    Light,
+    /// Follow system appearance.
+    System,
+}
+
+impl std::fmt::Display for ThemeMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ThemeMode::Dark => write!(f, "dark"),
+            ThemeMode::Light => write!(f, "light"),
+            ThemeMode::System => write!(f, "system"),
         }
     }
 }
@@ -619,6 +646,17 @@ impl SettingsStore {
         self.update(|s| s.openai_web_access_enabled = value).await;
     }
 
+    /// Gets the theme mode.
+    pub async fn theme_mode(&self) -> ThemeMode {
+        self.settings.read().await.theme_mode
+    }
+
+    /// Sets the theme mode.
+    pub async fn set_theme_mode(&self, mode: ThemeMode) -> Result<(), StoreError> {
+        self.update(|s| s.theme_mode = mode).await;
+        Ok(())
+    }
+
     // ========================================================================
     // Data Source Methods
     // ========================================================================
@@ -920,6 +958,81 @@ mod tests {
         assert_eq!(format!("{}", CookieSource::Safari), "Safari");
         assert_eq!(format!("{}", CookieSource::Chrome), "Chrome");
         assert_eq!(format!("{}", CookieSource::Manual), "Manual");
+    }
+
+    #[tokio::test]
+    async fn test_theme_mode_default() {
+        let store = SettingsStore::new(PathBuf::from("/tmp/test_theme_default.json"));
+        let settings = store.get().await;
+
+        // Should default to Dark
+        assert_eq!(settings.theme_mode, ThemeMode::Dark);
+    }
+
+    #[tokio::test]
+    async fn test_theme_mode_persistence() {
+        let store = SettingsStore::new(PathBuf::from("/tmp/test_theme_persist.json"));
+
+        // Set to Light
+        store.set_theme_mode(ThemeMode::Light).await.unwrap();
+        assert_eq!(store.theme_mode().await, ThemeMode::Light);
+
+        // Set to System
+        store.set_theme_mode(ThemeMode::System).await.unwrap();
+        assert_eq!(store.theme_mode().await, ThemeMode::System);
+
+        // Set back to Dark
+        store.set_theme_mode(ThemeMode::Dark).await.unwrap();
+        assert_eq!(store.theme_mode().await, ThemeMode::Dark);
+    }
+
+    #[tokio::test]
+    async fn test_theme_mode_serialization() {
+        use crate::persistence::{load_json, save_json};
+        use tempfile::tempdir;
+
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("test_theme.json");
+
+        // Create settings with Light theme
+        let mut settings = Settings::default();
+        settings.theme_mode = ThemeMode::Light;
+
+        // Save to disk
+        save_json(&path, &settings).await.unwrap();
+        assert!(path.exists());
+
+        // Load from disk
+        let loaded: Settings = load_json(&path).await.unwrap();
+        assert_eq!(loaded.theme_mode, ThemeMode::Light);
+
+        // Test all modes
+        settings.theme_mode = ThemeMode::System;
+        save_json(&path, &settings).await.unwrap();
+        let loaded: Settings = load_json(&path).await.unwrap();
+        assert_eq!(loaded.theme_mode, ThemeMode::System);
+
+        settings.theme_mode = ThemeMode::Dark;
+        save_json(&path, &settings).await.unwrap();
+        let loaded: Settings = load_json(&path).await.unwrap();
+        assert_eq!(loaded.theme_mode, ThemeMode::Dark);
+    }
+
+    #[test]
+    fn test_theme_mode_display() {
+        assert_eq!(format!("{}", ThemeMode::Dark), "dark");
+        assert_eq!(format!("{}", ThemeMode::Light), "light");
+        assert_eq!(format!("{}", ThemeMode::System), "system");
+    }
+
+    #[test]
+    fn test_theme_mode_equality() {
+        assert_eq!(ThemeMode::Dark, ThemeMode::Dark);
+        assert_eq!(ThemeMode::Light, ThemeMode::Light);
+        assert_eq!(ThemeMode::System, ThemeMode::System);
+        assert_ne!(ThemeMode::Dark, ThemeMode::Light);
+        assert_ne!(ThemeMode::Dark, ThemeMode::System);
+        assert_ne!(ThemeMode::Light, ThemeMode::System);
     }
 
     #[test]

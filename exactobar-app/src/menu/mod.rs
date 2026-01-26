@@ -31,6 +31,7 @@ pub use error::{EnhancedErrorSection, InstallHint, copy_to_clipboard, get_instal
 pub use footer::MenuFooter;
 
 use exactobar_core::ProviderKind;
+use exactobar_store::ThemeMode;
 use gpui::prelude::FluentBuilder;
 use gpui::*;
 use tracing::{debug, info};
@@ -46,6 +47,8 @@ use crate::theme;
 pub struct MenuPanel {
     /// Currently selected tab (All or a specific provider).
     selected_tab: SelectedTab,
+    /// Theme mode subscription - forces re-render when theme changes.
+    subscription: Option<gpui::Subscription>,
 }
 
 impl MenuPanel {
@@ -56,6 +59,7 @@ impl MenuPanel {
             selected_tab: initial_provider
                 .map(SelectedTab::Provider)
                 .unwrap_or(SelectedTab::All),
+            subscription: None,
         }
     }
 
@@ -64,6 +68,9 @@ impl MenuPanel {
     fn render_provider_switcher(
         &self,
         providers: &[ProviderKind],
+        text_primary: Hsla,
+        hover_bg: Hsla,
+        active_bg: Hsla,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         // Build the "All" tab button first
@@ -77,12 +84,12 @@ impl MenuPanel {
             .text_color(if is_all_selected {
                 gpui::white()
             } else {
-                theme::text_primary()
+                text_primary
             })
             .when(is_all_selected, |el| el.bg(theme::accent()))
             .when(!is_all_selected, |el| {
-                el.hover(|s| s.bg(theme::hover()))
-                    .active(|s| s.bg(theme::active()))
+                el.hover(move |s| s.bg(hover_bg))
+                    .active(move |s| s.bg(active_bg))
             })
             .on_mouse_down(
                 MouseButton::Left,
@@ -114,21 +121,22 @@ impl MenuPanel {
                     .py(px(5.))
                     .rounded(px(6.))
                     .cursor_pointer()
-                    .text_color(theme::text_primary())
+                    .text_color(text_primary)
                     // THE MAGIC: cx.listener() gives us access to `this`!
                     .on_mouse_down(
                         MouseButton::Left,
                         cx.listener(move |this, _, _window, cx| {
-                            info!(provider = ?provider, "Provider switch button clicked!");
-                            this.selected_tab = SelectedTab::Provider(provider);
+                            let p = provider; // Copy provider into closure (it's Copy)
+                            info!(provider = ?p, "Provider switch button clicked!");
+                            this.selected_tab = SelectedTab::Provider(p);
 
                             // Check if this provider has data, if not trigger refresh
                             let state = cx.global::<AppState>();
-                            let has_snapshot = state.get_snapshot(provider, cx).is_some();
+                            let has_snapshot = state.get_snapshot(p, cx).is_some();
                             if !has_snapshot {
-                                info!(provider = ?provider, "No snapshot, triggering refresh");
+                                info!(provider = ?p, "No snapshot, triggering refresh");
                                 cx.update_global::<AppState, _>(|state, cx| {
-                                    state.refresh_provider(provider, cx);
+                                    state.refresh_provider(p, cx);
                                 });
                             }
 
@@ -140,8 +148,8 @@ impl MenuPanel {
                     btn = btn.bg(theme::accent()).text_color(gpui::white());
                 } else {
                     btn = btn
-                        .hover(|s| s.bg(theme::hover()))
-                        .active(|s| s.bg(theme::active()));
+                        .hover(move |s| s.bg(hover_bg))
+                        .active(move |s| s.bg(active_bg));
                 }
 
                 btn.child(div().text_sm().child(name))
@@ -150,18 +158,43 @@ impl MenuPanel {
 }
 
 impl Render for MenuPanel {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         info!(tab = ?self.selected_tab, "🎨 MenuPanel::render() called!");
 
+        // Get the settings entity first (immutable borrow)
         let state = cx.global::<AppState>();
-        let settings = state.settings.read(cx);
+        let settings_entity = state.settings.clone();
+
+        // Do everything that needs state BEFORE setting up observation
+        // because observe() will mutably borrow cx
         let enabled = state.enabled_providers(cx);
+
+        // Read settings and get theme mode
+        let theme_mode = {
+            let settings = settings_entity.read(cx);
+            settings.theme_mode()
+        };
+
+        if self.subscription.is_none() {
+            self.subscription = Some(cx.observe(&settings_entity, |_this, _model, cx| {
+                cx.notify(); // Re-render when settings change
+            }));
+        }
         info!(
             enabled_count = enabled.len(),
             providers = ?enabled,
-            merge_icons = settings.merge_icons(),
+            merge_icons = settings_entity.read(cx).merge_icons(),
+            theme_mode = ?theme_mode,
             "Menu state - enabled providers"
         );
+
+        theme::set_current_theme_mode(theme_mode, window.appearance());
+
+        let text_primary = theme::text_primary();
+        let border_color = theme::border();
+        let menu_bg = theme::surface_background();
+        let hover_bg = theme::hover();
+        let active_bg = theme::active();
 
         // Build the content based on selected tab
         let content = match self.selected_tab {
@@ -178,7 +211,7 @@ impl Render for MenuPanel {
                     .flex_col()
                     .children(cards.into_iter().map(|card| {
                         // Wrap each card with a subtle separator
-                        div().border_b_1().border_color(theme::border()).child(card)
+                        div().border_b_1().border_color(border_color).child(card)
                     }))
                     .into_any_element()
             }
@@ -192,9 +225,8 @@ impl Render for MenuPanel {
         let root = div()
             .id("menu-panel")
             .w(px(340.)) // Slightly wider like Notification Center
-            // TRUE LIQUID GLASS: NO background at all! Window blur does everything.
-            // NO BORDERS - true borderless liquid glass design
-            .rounded(px(14.)) // Smooth rounded corners
+            .bg(menu_bg) // Theme-aware background
+            .h_full()
             .overflow_hidden()
             // Deep shadow for floating glass effect
             .shadow_lg()
@@ -206,14 +238,20 @@ impl Render for MenuPanel {
             .child(MenuHeader::new())
             // Provider switcher if multiple providers enabled - rendered here for cx.listener() access!
             .when(enabled.len() > 1, |el| {
-                el.child(self.render_provider_switcher(&enabled, cx))
+                el.child(self.render_provider_switcher(
+                    &enabled,
+                    text_primary,
+                    hover_bg,
+                    active_bg,
+                    cx,
+                ))
             })
             // Content area - grows to fill available space, scrolls when needed
             .child(
                 div()
                     .id("content-scroll-area")
                     .flex_1() // Grow to fill available space
-                    .min_h(px(100.)) // Minimum height
+                    .min_h(px(0.))
                     .overflow_y_scroll()
                     .child(content),
             )
@@ -247,7 +285,9 @@ impl IntoElement for MenuHeader {
         div()
             .px(px(14.))
             .py(px(10.))
-            // TRUE LIQUID GLASS: NO background - let window blur shine through!
+            .bg(theme::card_background())
+            .border_b_1()
+            .border_color(theme::glass_separator())
             .flex()
             .items_center()
             .justify_between()
