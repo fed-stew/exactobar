@@ -142,6 +142,7 @@ impl IntoElement for MenuCard {
                 snap,
                 self.data.session_label,
                 self.data.weekly_label,
+                Some("Search"),
                 self.data.show_used,
                 self.data.show_absolute,
             ));
@@ -232,7 +233,9 @@ impl IntoElement for CardHeader {
         div()
             .px(px(14.))
             .py(px(10.))
-            // TRUE LIQUID GLASS: NO background - let window blur shine through!
+            .bg(theme::card_background())
+            .border_b_1()
+            .border_color(theme::glass_separator())
             .flex()
             .flex_col()
             .gap(px(4.))
@@ -251,11 +254,17 @@ impl IntoElement for PlaceholderSection {
     type Element = Div;
 
     fn into_element(self) -> Self::Element {
-        div().px(px(14.)).py(px(10.)).child(
-            div()
-                .text_sm()
-                .text_color(theme::muted())
-                .child("No data yet"),
-        )
+        div()
+            .px(px(14.))
+            .py(px(10.))
+            .bg(theme::card_background())
+            .border_b_1()
+            .border_color(theme::glass_separator())
+            .child(
+                div()
+                    .text_sm()
+                    .text_color(theme::muted())
+                    .child("No data yet"),
+            )
     }
 }

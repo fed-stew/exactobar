@@ -30,7 +30,9 @@ impl IntoElement for MenuFooter {
         div()
             .px(px(10.))
             .py(px(8.))
-            // TRUE LIQUID GLASS: NO background - let window blur shine through!
+            .bg(theme::card_background())
+            .border_t_1()
+            .border_color(theme::glass_separator())
             .flex()
             .items_center()
             .justify_between()

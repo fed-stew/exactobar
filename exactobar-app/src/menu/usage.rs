@@ -34,6 +34,7 @@ impl UsageMetricsSection {
         snapshot: &UsageSnapshot,
         session_label: &str,
         weekly_label: &str,
+        search_label: Option<&str>,
         show_used: bool,
         show_absolute: bool,
     ) -> Self {
@@ -72,6 +73,17 @@ impl UsageMetricsSection {
             });
         }
 
+        if let Some(search) = &snapshot.search {
+            metrics.push(UsageMetric {
+                title: search_label.unwrap_or("Search").to_string(),
+                used_percent: search.used_percent,
+                resets_at: search.resets_at,
+                reset_description: search.reset_description.clone(),
+                show_used,
+                show_absolute,
+            });
+        }
+
         Self { metrics }
     }
 }
@@ -87,6 +99,9 @@ impl IntoElement for UsageMetricsSection {
         div()
             .px(px(14.))
             .py(px(10.))
+            .bg(theme::card_background())
+            .border_b_1()
+            .border_color(theme::glass_separator())
             .flex()
             .flex_col()
             .gap(px(10.))

@@ -219,6 +219,17 @@ impl SettingsModel {
         self.save_async();
     }
 
+    /// Gets the theme mode.
+    pub fn theme_mode(&self) -> exactobar_store::ThemeMode {
+        self.cached_settings.theme_mode
+    }
+
+    /// Sets the theme mode.
+    pub fn set_theme_mode(&mut self, mode: exactobar_store::ThemeMode) {
+        self.cached_settings.theme_mode = mode;
+        self.save_async();
+    }
+
     /// Gets the underlying settings.
     pub fn settings(&self) -> &Settings {
         &self.cached_settings

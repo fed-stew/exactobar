@@ -19,12 +19,13 @@ use crate::error::CoreError;
 // Usage Snapshot & Windows
 // ============================================================================
 
-/// A snapshot of usage data with primary, secondary, and tertiary windows.
+/// A snapshot of usage data with primary, secondary, tertiary, and search windows.
 ///
 /// This is the main container for usage information:
 /// - **Primary** = session window (e.g., 5 hours for Claude)
 /// - **Secondary** = weekly/monthly window
 /// - **Tertiary** = opus/premium tier (Claude-specific)
+/// - **Search** = search sub-system quota (e.g., hourly search limits)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UsageSnapshot {
     /// Primary usage window (session-based).
@@ -33,6 +34,8 @@ pub struct UsageSnapshot {
     pub secondary: Option<UsageWindow>,
     /// Tertiary usage window (opus/premium tier).
     pub tertiary: Option<UsageWindow>,
+    /// Search sub-system usage window (e.g., hourly search quota).
+    pub search: Option<UsageWindow>,
     /// When this snapshot was last updated.
     pub updated_at: DateTime<Utc>,
     /// Account identity for this provider.
@@ -49,6 +52,7 @@ impl UsageSnapshot {
             primary: None,
             secondary: None,
             tertiary: None,
+            search: None,
             updated_at: Utc::now(),
             identity: None,
             fetch_source: FetchSource::default(),
@@ -71,6 +75,10 @@ impl UsageSnapshot {
                 .tertiary
                 .as_ref()
                 .is_some_and(|w| w.used_percent > 80.0)
+            || self
+                .search
+                .as_ref()
+                .is_some_and(|w| w.used_percent > 80.0)
     }
 
     /// Returns the highest usage percentage across all windows.
@@ -85,12 +93,18 @@ impl UsageSnapshot {
         if let Some(ref w) = self.tertiary {
             max = max.max(w.used_percent);
         }
+        if let Some(ref w) = self.search {
+            max = max.max(w.used_percent);
+        }
         max
     }
 
     /// Returns true if any window data is present.
     pub fn has_data(&self) -> bool {
-        self.primary.is_some() || self.secondary.is_some() || self.tertiary.is_some()
+        self.primary.is_some()
+            || self.secondary.is_some()
+            || self.tertiary.is_some()
+            || self.search.is_some()
     }
 }
 
@@ -127,6 +141,11 @@ impl UsageSnapshot {
                 .validate()
                 .map_err(|e| CoreError::InvalidData(format!("tertiary window: {e}")))?;
         }
+        if let Some(ref search) = self.search {
+            search
+                .validate()
+                .map_err(|e| CoreError::InvalidData(format!("search window: {e}")))?;
+        }
         Ok(())
     }
 
@@ -144,6 +163,9 @@ impl UsageSnapshot {
         }
         if let Some(ref mut tertiary) = self.tertiary {
             tertiary.sanitize();
+        }
+        if let Some(ref mut search) = self.search {
+            search.sanitize();
         }
     }
 }
@@ -358,6 +380,7 @@ impl UsageData {
             primary: window,
             secondary: None,
             tertiary: None,
+            search: None,
             updated_at: self.fetched_at,
             identity: None,
             fetch_source: FetchSource::Auto,

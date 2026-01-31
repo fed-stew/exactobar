@@ -62,7 +62,7 @@ impl SyntheticQuotaResponse {
         if let Some(ref sub) = self.subscription {
             // Calculate usage percentage
             let used_percent = if sub.limit > 0 {
-                (sub.requests as f64 / sub.limit as f64) * 100.0
+                (sub.requests / sub.limit as f64) * 100.0
             } else {
                 0.0
             };
@@ -86,6 +86,29 @@ impl SyntheticQuotaResponse {
             identity.plan_name = Some(format!("{} requests/period", sub.limit));
             identity.login_method = Some(LoginMethod::ApiKey);
             snapshot.identity = Some(identity);
+        }
+
+        // Add search quota if available
+        if let Some(ref search) = self.search {
+            let hourly = &search.hourly;
+            let used_percent = if hourly.limit > 0 {
+                (hourly.requests / hourly.limit as f64) * 100.0
+            } else {
+                0.0
+            };
+
+            let resets_at = hourly.renews_at.as_ref().and_then(|s| {
+                DateTime::parse_from_rfc3339(s)
+                    .ok()
+                    .map(|dt| dt.with_timezone(&Utc))
+            });
+
+            snapshot.search = Some(exactobar_core::UsageWindow {
+                used_percent,
+                window_minutes: Some(60), // Hourly window
+                resets_at,
+                reset_description: None,
+            });
         }
 
         snapshot
@@ -227,7 +250,7 @@ mod tests {
                     requests: 50.0,
                     renews_at: Some("2025-09-21T14:36:14.288Z".to_string()),
                 },
-            })
+            }),
         };
 
         let snapshot = response.to_snapshot();
@@ -235,6 +258,13 @@ mod tests {
         let primary = snapshot.primary.unwrap();
         assert_eq!(primary.used_percent, 50.0);
         assert!(primary.resets_at.is_some());
+
+        // Verify search is populated
+        assert!(snapshot.search.is_some());
+        let search = snapshot.search.unwrap();
+        assert_eq!(search.used_percent, 50.0);
+        assert!(search.resets_at.is_some());
+        assert_eq!(search.window_minutes, Some(60));
     }
 
     #[test]
@@ -252,7 +282,7 @@ mod tests {
                     requests: 50.0,
                     renews_at: Some("2025-09-21T14:36:14.288Z".to_string()),
                 },
-            })
+            }),
         };
 
         let snapshot = response.to_snapshot();

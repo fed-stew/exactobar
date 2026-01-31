@@ -75,7 +75,14 @@ impl IntoElement for ActionButtonsSection {
             return div();
         }
 
-        let mut row = div().px(px(14.)).py(px(8.)).flex().gap(px(6.));
+        let mut row = div()
+            .px(px(14.))
+            .py(px(8.))
+            .bg(theme::card_background())
+            .border_b_1()
+            .border_color(theme::glass_separator())
+            .flex()
+            .gap(px(6.));
 
         // Dashboard button
         if let Some(url) = self.dashboard_url.clone() {
